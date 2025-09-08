@@ -27,6 +27,7 @@ OUTPUT_DIR="${DB_EXPORT_DIR:-./db-export}"
 ARCHIVE_NAME="${DB_ARCHIVE_NAME:-db-dump.tar.gz}"
 DATA_ROW_LIMIT="${DB_ROW_LIMIT:-0}"
 TRUST_CERT="${DB_TRUST_SERVER_CERTIFICATE:-false}"
+SCHEMA_ONLY_TABLES="${DB_SCHEMA_ONLY_TABLES:-}"
 
 # Parse command line args (optional overrides)
 while [[ $# -gt 0 ]]; do
@@ -59,6 +60,10 @@ while [[ $# -gt 0 ]]; do
             DATA_ROW_LIMIT="$2"
             shift 2
             ;;
+        --schema-only-tables)
+            SCHEMA_ONLY_TABLES="$2"
+            shift 2
+            ;;
         --trust-server-certificate)
             TRUST_CERT="true"
             shift
@@ -80,6 +85,7 @@ CONFIGURATION:
     DB_EXPORT_DIR (--output-dir)  Export directory (default: ./db-export)
     DB_ARCHIVE_NAME (--archive-name) Archive filename (default: db-dump.tar.gz)
     DB_ROW_LIMIT (--row-limit)    Max rows per table (default: 0=unlimited)
+    DB_SCHEMA_ONLY_TABLES (--schema-only-tables) Tables to export schema only (comma-separated)
     DB_TRUST_SERVER_CERTIFICATE (--trust-server-certificate) Trust server certificate (default: false)
 
 LOGGING:
@@ -161,6 +167,10 @@ fi
 
 if [[ "$TRUST_CERT" == "true" ]]; then
     PS_ARGS+=("-TrustServerCertificate")
+fi
+
+if [[ -n "$SCHEMA_ONLY_TABLES" ]]; then
+    PS_ARGS+=("-SchemaOnlyTables" "$SCHEMA_ONLY_TABLES")
 fi
 
 # Check if export script exists

@@ -21,6 +21,7 @@ DATA_DIR=""
 TABLES_FILE=""
 ROW_LIMIT=0
 TRUST_CERT=false
+SCHEMA_ONLY_TABLES=""
 
 # Function to show usage
 show_usage() {
@@ -40,6 +41,7 @@ OPTIONAL:
     -u, --username      SQL Server username (uses trusted connection if not provided)
     -p, --password      SQL Server password
     --row-limit         Maximum rows per table (default: 0=unlimited)
+    --schema-only-tables Comma-separated list of tables to export schema only (no data)
     --trust-server-certificate  Trust server certificate
     -h, --help          Show this help message
 
@@ -59,6 +61,9 @@ EXAMPLES:
 
     # With SSL certificate trust
     $0 -s "localhost,1499" -d "MyDB" -u "sa" -p "password" -D "./data" -t "tables.txt" --trust-server-certificate
+
+    # With schema-only tables (no data export)
+    $0 -s "localhost,1499" -d "MyDB" -u "sa" -p "password" -D "./data" -t "tables.txt" --schema-only-tables "AuditLog,TempData,SessionLog"
 
 NOTES:
     - The tables file should contain one table per line in format: Database.Schema.Table
@@ -96,6 +101,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --row-limit)
             ROW_LIMIT="$2"
+            shift 2
+            ;;
+        --schema-only-tables)
+            SCHEMA_ONLY_TABLES="$2"
             shift 2
             ;;
         --trust-server-certificate)
@@ -138,6 +147,27 @@ fi
 log_debug "Parameters validated - Server: $SERVER, Database: $DATABASE"
 log_debug "Data directory: $DATA_DIR, Tables file: $TABLES_FILE"
 log_debug "Authentication: Username='$USERNAME', Trust cert: $TRUST_CERT, Row limit: $ROW_LIMIT"
+log_debug "Schema-only tables: $SCHEMA_ONLY_TABLES"
+
+# Build regex pattern for schema-only tables if specified
+SCHEMA_ONLY_PATTERN=""
+if [[ -n "$SCHEMA_ONLY_TABLES" ]]; then
+    IFS=',' read -ra SCHEMA_ONLY_ARRAY <<< "$SCHEMA_ONLY_TABLES"
+    PATTERN_PARTS=()
+
+    for table in "${SCHEMA_ONLY_ARRAY[@]}"; do
+        table=$(echo "$table" | xargs)  # Trim whitespace
+        # Escape dots for regex and create pattern that matches table name at end
+        escaped_table=$(echo "$table" | sed 's/\./\\./g')
+        PATTERN_PARTS+=("\\.$escaped_table\$")
+    done
+
+    # Join patterns with | for OR matching
+    SCHEMA_ONLY_PATTERN=$(printf "|%s" "${PATTERN_PARTS[@]}")
+    SCHEMA_ONLY_PATTERN=${SCHEMA_ONLY_PATTERN:1}  # Remove leading |
+
+    log_debug "Schema-only regex pattern: $SCHEMA_ONLY_PATTERN"
+fi
 
 # Validate inputs
 if [[ ! -f "$TABLES_FILE" ]]; then
@@ -212,6 +242,10 @@ while IFS= read -r table_line; do
         FORMAT_LOG_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.format.log"
         if log_exec "Generate format file for $SCHEMA_NAME.$TABLE_NAME" "$FORMAT_LOG_FILE" "${FORMAT_CMD[@]}"; then
             print_success "Created: $SCHEMA_NAME.$TABLE_NAME.fmt"
+            # Create empty data file at the same time
+            DATA_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.dat"
+            touch "$DATA_FILE"
+            log_debug "Created empty data file: $SCHEMA_NAME.$TABLE_NAME.dat"
             ((FORMAT_CREATED++))
         else
             print_warning "Failed to create format file for: $FULL_TABLE_NAME"
@@ -229,7 +263,14 @@ print_info "Format files failed: $FORMAT_FAILED"
 
 log_section "EXPORTING DATA"
 
-# Second pass: Export data using format files
+# Second pass: Export data using format files (filter out schema-only tables)
+if [[ -n "$SCHEMA_ONLY_PATTERN" ]]; then
+    log_debug "Filtering schema-only tables with pattern: $SCHEMA_ONLY_PATTERN"
+    FILTERED_TABLES=$(cat "$TABLES_FILE" | egrep -v "$SCHEMA_ONLY_PATTERN")
+else
+    FILTERED_TABLES=$(cat "$TABLES_FILE")
+fi
+
 while IFS= read -r table_line; do
     # Skip empty lines
     [[ -z "$table_line" ]] && continue
@@ -280,7 +321,7 @@ while IFS= read -r table_line; do
         print_warning "Invalid table format: $table_line"
         ((DATA_FAILED++))
     fi
-done < "$TABLES_FILE"
+done <<< "$FILTERED_TABLES"
 
 log_summary
 print_success "Format files created: $FORMAT_CREATED"

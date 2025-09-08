@@ -19,12 +19,16 @@
     Name of the final tar.gz file (default: db-dump.tar.gz)
 .PARAMETER ExcludeTables
     Array of tables to exclude from data export (schema still exported)
+.PARAMETER SchemaOnlyTables
+    Array of tables to export schema only (no data), like mysqldump --schema-only-tables
 .PARAMETER DataRowLimit
     Maximum rows per table for data export (default: unlimited)
 .EXAMPLE
     .\export-database.ps1 -SqlInstance "localhost,1499" -Database "MyApp" -OutputPath "./exports"
 .EXAMPLE
     .\export-database.ps1 -SqlInstance "prod.server.com" -Database "MyApp" -Username "dbuser" -Password "mypass" -DataRowLimit 10000
+.EXAMPLE
+    .\export-database.ps1 -SqlInstance "localhost,1499" -Database "MyApp" -SchemaOnlyTables "AuditLog","TempData","SessionLog"
 #>
 
 [CmdletBinding()]
@@ -40,6 +44,7 @@ param(
     [string]$OutputPath = "./output",
     [string]$TarFileName = "db-dump.tar.gz",
     [string[]]$ExcludeTables = @(),
+    [string[]]$SchemaOnlyTables = @(),
     [int]$DataRowLimit = 0,
     [switch]$TrustServerCertificate
 )
@@ -152,6 +157,7 @@ function Export-Database {
         [string]$OutputPath,
         [string]$TarFileName,
         [string[]]$ExcludeTables,
+        [string[]]$SchemaOnlyTables,
         [int]$DataRowLimit,
         [switch]$TrustServerCertificate
     )
@@ -202,7 +208,7 @@ function Export-Database {
         Write-LogDebug "Database object retrieved successfully"
     } catch {
         Write-LogError "Failed to connect to database: $_"
-        return $false
+        throw "Database connection failed"
     }
 
     # Build connection parameters for other dbatools commands
@@ -216,7 +222,7 @@ function Export-Database {
         Export-DatabaseSchema -ConnectionParams $connectionParams -SchemaPath $schemaPath
     } catch {
         Write-LogError "Schema export failed: $_"
-        return $false
+        throw "Schema export failed"
     }
 
     # Export table list
@@ -224,18 +230,20 @@ function Export-Database {
         Export-TableList -ConnectionParams $connectionParams -TablesListPath $tablesListPath
     } catch {
         Write-LogError "Table list export failed: $_"
-        return $false
+        throw "Table list export failed"
     }
 
     # Export data using bash script
     try {
-        $dataExportSuccess = Export-TableData -SqlInstance $SqlInstance -Database $Database -Username $Username -Password $Password -DataPath $dataPath -TablesListPath $tablesListPath -DataRowLimit $DataRowLimit -TrustServerCertificate $TrustServerCertificate
+        # Call without assignment to avoid capturing output, then check exit code
+        Export-TableData -SqlInstance $SqlInstance -Database $Database -Username $Username -Password $Password -DataPath $dataPath -TablesListPath $tablesListPath -SchemaOnlyTables $SchemaOnlyTables -DataRowLimit $DataRowLimit -TrustServerCertificate $TrustServerCertificate
+        $dataExportSuccess = $?
         if (-not $dataExportSuccess) {
-            return $false
+            throw "Data export failed"
         }
     } catch {
         Write-LogError "Data export failed: $_"
-        return $false
+        throw "Data export failed"
     }
 
     # Create archive
@@ -243,10 +251,10 @@ function Export-Database {
         Create-DatabaseArchive -OutputPath $OutputPath -TarFileName $TarFileName
     } catch {
         Write-LogError "Archive creation failed: $_"
-        return $false
+        throw "Archive creation failed"
     }
 
-    return $true
+    # Success - no explicit return needed
 }
 
 function Export-DatabaseSchema {
@@ -262,9 +270,11 @@ function Export-DatabaseSchema {
     $scriptingOptions.ScriptSchema = $true
     $scriptingOptions.ScriptData = $false
     $scriptingOptions.Indexes = $true          # Include indexes (clustered and non-clustered)
-    $scriptingOptions.DriForeignKeys = $true   # Include foreign keys
-    $scriptingOptions.DriAllConstraints = $true  # Include all constraints (primary keys, foreign keys, etc.)
-    $scriptingOptions.Triggers = $true         # Include triggers
+    $scriptingOptions.DriForeignKeys = $false  # Export foreign keys separately
+    $scriptingOptions.DriAllConstraints = $false  # Export constraints separately
+    $scriptingOptions.DriPrimaryKey = $true    # Keep primary keys with tables
+    $scriptingOptions.DriChecks = $false       # Export check constraints separately
+    $scriptingOptions.Triggers = $false        # Export triggers separately
     $scriptingOptions.IncludeDatabaseContext = $true
     $scriptingOptions.IncludeHeaders = $false
     $scriptingOptions.ScriptBatchTerminator = $true
@@ -288,37 +298,41 @@ function Export-DatabaseSchema {
     $currentLogLevel = Get-LogLevel
     $isTraceLevel = (Get-LogLevelValue $currentLogLevel) -ge 5
 
-    # Define export configurations
+    # Define export configurations (tables first, then constraints)
     $exportConfigs = @(
         @{
             Name = "tables"
-            Description = "Exporting tables..."
+            Description = "Exporting tables (structure only)..."
             Command = "Get-DbaDbTable"
             UseScriptingOptions = $true
             IsFirst = $true
-        },
-        @{
-            Name = "stored procedures"
-            Description = "Exporting stored procedures..."
-            Command = "Get-DbaDbStoredProcedure"
-            UseScriptingOptions = $false
-            IsFirst = $false
-        },
-        @{
-            Name = "views"
-            Description = "Exporting views..."
-            Command = "Get-DbaDbView"
-            UseScriptingOptions = $false
-            IsFirst = $false
-        },
-        @{
-            Name = "user defined functions"
-            Description = "Exporting user defined functions..."
-            Command = "Get-DbaDbUdf"
-            UseScriptingOptions = $false
-            IsFirst = $false
         }
     )
+
+    # Create separate scripting options for constraints
+    $constraintOptions = New-DbaScriptingOption
+    $constraintOptions.ScriptSchema = $true     # Must be true to script constraints
+    $constraintOptions.ScriptData = $false
+    $constraintOptions.Indexes = $false
+    $constraintOptions.DriForeignKeys = $true   # Only foreign keys
+    $constraintOptions.DriAllConstraints = $false
+    $constraintOptions.DriPrimaryKey = $false   # Already included with tables
+    $constraintOptions.DriChecks = $true        # Check constraints
+    $constraintOptions.Triggers = $true         # Triggers
+    $constraintOptions.IncludeDatabaseContext = $true
+    $constraintOptions.IncludeHeaders = $false
+    $constraintOptions.ScriptBatchTerminator = $true
+    $constraintOptions.AnsiFile = $true
+
+    # Add constraint export configuration
+    $exportConfigs += @{
+        Name = "constraints"
+        Description = "Exporting foreign keys and constraints..."
+        Command = "Get-DbaDbTable"
+        UseScriptingOptions = $true
+        CustomOptions = $constraintOptions
+        IsFirst = $false
+    }
 
     if ($isTraceLevel) {
         Write-LogTrace "Using direct file output (verbose console output enabled)"
@@ -338,7 +352,7 @@ function Export-DatabaseSchema {
             }
 
             if ($config.UseScriptingOptions) {
-                $exportParams.ScriptingOptionsObject = $scriptingOptions
+                $exportParams.ScriptingOptionsObject = if ($config.CustomOptions) { $config.CustomOptions } else { $scriptingOptions }
             }
             if (-not $config.IsFirst) {
                 $exportParams.Append = $true
@@ -354,7 +368,7 @@ function Export-DatabaseSchema {
             }
 
             if ($config.UseScriptingOptions) {
-                $exportParams.ScriptingOptionsObject = $scriptingOptions
+                $exportParams.ScriptingOptionsObject = if ($config.CustomOptions) { $config.CustomOptions } else { $scriptingOptions }
             }
 
             $scriptContent = & $config.Command @ConnectionParams | Export-DbaScript @exportParams
@@ -402,6 +416,7 @@ function Export-TableData {
         [string]$Password,
         [string]$DataPath,
         [string]$TablesListPath,
+        [string[]]$SchemaOnlyTables,
         [int]$DataRowLimit,
         [switch]$TrustServerCertificate
     )
@@ -443,6 +458,10 @@ function Export-TableData {
         $bashArgs += "--trust-server-certificate"
     }
 
+    if ($SchemaOnlyTables -and $SchemaOnlyTables.Count -gt 0) {
+        $bashArgs += "--schema-only-tables", ($SchemaOnlyTables -join ",")
+    }
+
     Write-LogProgress "Calling export-data.sh with arguments..."
     Write-LogTrace "Script: $bashScriptPath"
     Write-LogDebug "Final arguments with absolute paths: $($bashArgs -join ' ')"
@@ -458,17 +477,15 @@ function Export-TableData {
 
         if ($exitCode -eq 0) {
             Write-LogSuccess "Data export completed successfully"
-            return $true
         } elseif ($exitCode -eq 1) {
             Write-LogWarning "Data export completed with some failures - continuing with archive creation"
-            return $true
         } else {
             Write-LogError "Data export failed completely with exit code: $exitCode"
-            return $false
+            throw "Data export failed with exit code: $exitCode"
         }
     } else {
         Write-LogError "bash command not found. Please ensure bash is installed and in PATH."
-        return $false
+        throw "bash command not found"
     }
 }
 
@@ -480,8 +497,14 @@ function Create-DatabaseArchive {
 
     Write-LogSection "CREATING ARCHIVE"
 
-    # Create tar.gz archive
-    $tarPath = Join-Path (Split-Path $OutputPath -Parent) $TarFileName
+    # Create tar.gz archive - handle both relative and absolute TarFileName
+    if ([System.IO.Path]::IsPathRooted($TarFileName)) {
+        # TarFileName is already a full path
+        $tarPath = $TarFileName
+    } else {
+        # TarFileName is just a filename - create it relative to current working directory
+        $tarPath = Join-Path (Get-Location).Path $TarFileName
+    }
 
     try {
         # Change to output directory for relative paths in tar
@@ -522,16 +545,16 @@ try {
 }
 
 # Execute the main export process
-$success = Export-Database -SqlInstance $SqlInstance -Database $Database -Username $Username -Password $Password -OutputPath $OutputPath -TarFileName $TarFileName -ExcludeTables $ExcludeTables -DataRowLimit $DataRowLimit -TrustServerCertificate:$TrustServerCertificate
+try {
+    Export-Database -SqlInstance $SqlInstance -Database $Database -Username $Username -Password $Password -OutputPath $OutputPath -TarFileName $TarFileName -ExcludeTables $ExcludeTables -SchemaOnlyTables $SchemaOnlyTables -DataRowLimit $DataRowLimit -TrustServerCertificate:$TrustServerCertificate
 
-if ($success) {
     Write-LogSection "EXPORT COMPLETE"
     Write-LogSuccess "Database export completed successfully!"
 
     $schemaPath = Join-Path $OutputPath "schema.sql"
     $tablesListPath = Join-Path $OutputPath "tables.txt"
     $dataPath = Join-Path $OutputPath "data"
-    $tarPath = Join-Path (Split-Path $OutputPath -Parent) $TarFileName
+    $tarPath = if ([System.IO.Path]::IsPathRooted($TarFileName)) { $TarFileName } else { Join-Path (Get-Location).Path $TarFileName }
 
     Write-LogInfo "Files created:" -Color "Blue"
     Write-LogInfo "  - Schema: $schemaPath" -Color "Gray"
@@ -541,7 +564,7 @@ if ($success) {
     Write-LogDebug "Export process finished with all components"
 
     exit 0
-} else {
-    Write-LogError "Database export failed!"
+} catch {
+    Write-LogError "Database export failed: $_"
     exit 1
 }
