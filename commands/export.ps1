@@ -145,7 +145,7 @@ Write-Host "`n=== EXPORTING TABLE LIST ===" -ForegroundColor Cyan
 
 # Get all tables and export list
 try {
-    $tables = Get-DbaDbTable @connectionParams | Where-Object { -not $_.IsSystemObject }
+    $tables = Get-DbaDbTable @connectionParams
     $tableList = $tables | ForEach-Object {
         "$($_.Parent.Name).$($_.Schema).$($_.Name)"
     }
@@ -158,73 +158,94 @@ try {
     exit 1
 }
 
-Write-Host "`n=== EXPORTING DATA ===" -ForegroundColor Cyan
+Write-Host "`n=== CALLING EXPORT DATA SCRIPT ===" -ForegroundColor Cyan
 
-# Prepare bcp command parameters
-$bcpParams = @()
+# Prepare parameters for bash script
+$bashScriptPath = Join-Path $PSScriptRoot "export-data.sh"
+
+if (-not (Test-Path $bashScriptPath)) {
+    Write-Error "export-data.sh not found at: $bashScriptPath"
+    exit 1
+}
+
+# Build parameters for the bash script using proper arguments
+$bashArgs = @(
+    "-s", "'$SqlInstance'"
+    "-d", "'$Database'"
+    "-D", "'$dataPath'"
+    "-t", "'$tablesListPath'"
+)
+
+# Add optional parameters
 if ($Username -and $Password) {
-    $bcpParams += "-U", $Username, "-P", $Password
-} else {
-    $bcpParams += "-T"  # Trusted connection
+    $bashArgs += "-u", "'$Username'"
+    $bashArgs += "-p", "'$Password'"
 }
 
-# Export data for each table using bcp
-$exportedTables = 0
-$failedTables = 0
+if ($DataRowLimit -gt 0) {
+    $bashArgs += "--row-limit", $DataRowLimit.ToString()
+}
 
-foreach ($table in $tables) {
-    $tableName = $table.Name
-    $schemaName = $table.Schema
-    $fullTableName = "[$Database].[$schemaName].[$tableName]"
-    $fileName = "$schemaName.$tableName.csv"
-    $filePath = Join-Path $dataPath $fileName
+if ($TrustServerCertificate) {
+    $bashArgs += "--trust-server-certificate"
+}
 
-    # Skip excluded tables
-    if ($ExcludeTables -contains $tableName -or $ExcludeTables -contains "$schemaName.$tableName") {
-        Write-Host "Skipping excluded table: $fullTableName" -ForegroundColor DarkYellow
-        continue
-    }
+Write-Host "Calling export-data.sh with arguments..." -ForegroundColor Yellow
+Write-Host "Script: $bashScriptPath" -ForegroundColor Gray
+Write-Host "Arguments: $($bashArgs -join ' ')" -ForegroundColor Gray
 
-    Write-Host "Exporting data: $fullTableName" -ForegroundColor Yellow
+# Convert relative paths to absolute paths for bash script
+$absoluteDataPath = Resolve-Path $dataPath | Select-Object -ExpandProperty Path
+$absoluteTablesPath = Resolve-Path $tablesListPath | Select-Object -ExpandProperty Path
 
-    try {
-        # Build bcp command
-        $query = "SELECT * FROM $fullTableName"
-        if ($DataRowLimit -gt 0) {
-            $query = "SELECT TOP $DataRowLimit * FROM $fullTableName"
-        }
+# Update bash args with absolute paths
+$bashArgs = @(
+    "-s", $SqlInstance
+    "-d", $Database
+    "-D", $absoluteDataPath
+    "-t", $absoluteTablesPath
+)
 
-        # Use bcp to export data
-        $bcpCommand = @(
-            "bcp"
-            "`"$query`""
-            "queryout"
-            "`"$filePath`""
-            "-c"  # Character format
-            "-t,"  # Field terminator (comma)
-            "-r\n"  # Row terminator
-            "-S"
-            $SqlInstance
-        ) + $bcpParams
+# Add optional parameters
+if ($Username -and $Password) {
+    $bashArgs += "-u", $Username
+    $bashArgs += "-p", $Password
+}
 
-        $result = & $bcpCommand[0] $bcpCommand[1..($bcpCommand.Length-1)] 2>&1
+if ($DataRowLimit -gt 0) {
+    $bashArgs += "--row-limit", $DataRowLimit.ToString()
+}
 
-        if ($LASTEXITCODE -eq 0) {
-            $exportedTables++
-            Write-Host "✓ Exported: $fileName" -ForegroundColor Green
+if ($TrustServerCertificate) {
+    $bashArgs += "--trust-server-certificate"
+}
+
+Write-Host "Updated arguments with absolute paths: $($bashArgs -join ' ')" -ForegroundColor Gray
+
+# Execute the bash script with direct output (no capturing)
+try {
+    if (Get-Command bash -ErrorAction SilentlyContinue) {
+        Write-Host "DEBUG: Executing: bash '$bashScriptPath' $($bashArgs -join ' ')" -ForegroundColor Magenta
+
+        # Execute directly without capturing output - let it pass through
+        & bash $bashScriptPath @bashArgs
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -eq 0) {
+            Write-Host "✓ Data export completed successfully" -ForegroundColor Green
         } else {
-            $failedTables++
-            Write-Warning "Failed to export $fullTableName`: $result"
+            Write-Error "Data export script failed with exit code: $exitCode"
+            exit $exitCode
         }
-    } catch {
-        $failedTables++
-        Write-Warning "Failed to export $fullTableName`: $_"
+    } else {
+        Write-Error "bash command not found. Please ensure bash is installed and in PATH."
+        exit 1
     }
+} catch {
+    Write-Error "Failed to execute export-data.sh: $_"
+    Write-Host "Exception details: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
 }
-
-Write-Host "`n=== EXPORT SUMMARY ===" -ForegroundColor Cyan
-Write-Host "Tables exported: $exportedTables" -ForegroundColor Green
-Write-Host "Tables failed: $failedTables" -ForegroundColor $(if ($failedTables -gt 0) { "Red" } else { "Green" })
 
 Write-Host "`n=== CREATING ARCHIVE ===" -ForegroundColor Cyan
 
