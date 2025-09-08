@@ -36,6 +36,7 @@ PASSWORD="${DB_PASSWORD:-}"
 OUTPUT_DIR="${DB_EXPORT_DIR:-./db-export}"
 ARCHIVE_NAME="${DB_ARCHIVE_NAME:-db-dump.tar.gz}"
 DATA_ROW_LIMIT="${DB_ROW_LIMIT:-0}"
+TRUST_CERT="${DB_TRUST_SERVER_CERTIFICATE:-false}"
 
 # Parse command line args (optional overrides)
 while [[ $# -gt 0 ]]; do
@@ -68,6 +69,10 @@ while [[ $# -gt 0 ]]; do
             DATA_ROW_LIMIT="$2"
             shift 2
             ;;
+        --trust-server-certificate)
+            TRUST_CERT="true"
+            shift
+            ;;
         -h|--help)
             cat << EOF
 CI Database Export Wrapper
@@ -85,6 +90,7 @@ CONFIGURATION:
     DB_EXPORT_DIR (--output-dir)  Export directory (default: ./db-export)
     DB_ARCHIVE_NAME (--archive-name) Archive filename (default: db-dump.tar.gz)
     DB_ROW_LIMIT (--row-limit)    Max rows per table (default: 0=unlimited)
+    DB_TRUST_SERVER_CERTIFICATE (--trust-server-certificate) Trust server certificate (default: false)
 
 EXAMPLES:
     # Using environment variables
@@ -154,6 +160,10 @@ fi
 
 if [[ "$DATA_ROW_LIMIT" != "0" ]]; then
     PS_ARGS+=("-DataRowLimit" "$DATA_ROW_LIMIT")
+fi
+
+if [[ "$TRUST_CERT" == "true" ]]; then
+    PS_ARGS+=("-TrustServerCertificate")
 fi
 
 # Check if export script exists

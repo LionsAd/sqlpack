@@ -39,7 +39,8 @@ param(
     [string]$OutputPath = "./output",
     [string]$TarFileName = "db-dump.tar.gz",
     [string[]]$ExcludeTables = @(),
-    [int]$DataRowLimit = 0
+    [int]$DataRowLimit = 0,
+    [switch]$TrustServerCertificate
 )
 
 # Import required modules
@@ -60,32 +61,43 @@ Write-Host "Creating output directories..." -ForegroundColor Yellow
 New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
 New-Item -ItemType Directory -Path $dataPath -Force | Out-Null
 
-# Build connection parameters
-$connectionParams = @{
+# Build connection parameters for Connect-DbaInstance
+$connectParams = @{
     SqlInstance = $SqlInstance
-    Database = $Database
 }
 
 if ($Username -and $Password) {
     $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
     $credential = New-Object System.Management.Automation.PSCredential($Username, $securePassword)
-    $connectionParams.SqlCredential = $credential
+    $connectParams.SqlCredential = $credential
     Write-Host "Using SQL Server authentication" -ForegroundColor Blue
 } else {
     Write-Host "Using Windows authentication" -ForegroundColor Blue
 }
 
-# Test connection
+if ($TrustServerCertificate) {
+    $connectParams.TrustServerCertificate = $true
+    Write-Host "Trusting server certificate (bypassing SSL validation)" -ForegroundColor Yellow
+}
+
+# Test connection and get server instance
 Write-Host "Testing database connection..." -ForegroundColor Yellow
 try {
-    $testConnection = Get-DbaDatabase @connectionParams | Where-Object Name -eq $Database
-    if (-not $testConnection) {
+    $server = Connect-DbaInstance @connectParams
+    $testDatabase = Get-DbaDatabase -SqlInstance $server | Where-Object Name -eq $Database
+    if (-not $testDatabase) {
         throw "Database '$Database' not found"
     }
     Write-Host "✓ Connected to database: $Database" -ForegroundColor Green
 } catch {
     Write-Error "Failed to connect to database: $_"
     exit 1
+}
+
+# Build connection parameters for other dbatools commands
+$connectionParams = @{
+    SqlInstance = $server
+    Database = $Database
 }
 
 Write-Host "`n=== EXPORTING SCHEMA ===" -ForegroundColor Cyan
