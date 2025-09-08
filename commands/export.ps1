@@ -142,90 +142,148 @@ function Write-LogProgress($Message) { Write-LogInfo "$Message" -Color "Yellow" 
 $logLevel = Get-LogLevel
 Write-LogDebug "PowerShell logging initialized - Level: $logLevel"
 
-# Import required modules
-try {
-    Import-Module dbatools -ErrorAction Stop
-    Write-LogSuccess "dbatools module loaded"
-} catch {
-    Write-LogError "dbatools module not found. Install with: Install-Module dbatools -Scope CurrentUser"
-    exit 1
-}
+# Helper function for database export
+function Export-Database {
+    param(
+        [string]$SqlInstance,
+        [string]$Database,
+        [string]$Username,
+        [string]$Password,
+        [string]$OutputPath,
+        [string]$TarFileName,
+        [string[]]$ExcludeTables,
+        [int]$DataRowLimit,
+        [switch]$TrustServerCertificate
+    )
 
-# Create output directories
-$schemaPath = Join-Path $OutputPath "schema.sql"
-$tablesListPath = Join-Path $OutputPath "tables.txt"
-$dataPath = Join-Path $OutputPath "data"
+    # Create output directories
+    $schemaPath = Join-Path $OutputPath "schema.sql"
+    $tablesListPath = Join-Path $OutputPath "tables.txt"
+    $dataPath = Join-Path $OutputPath "data"
 
-Write-LogProgress "Creating output directories..."
-Write-LogDebug "Output path: $OutputPath, Data path: $dataPath"
-New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
-New-Item -ItemType Directory -Path $dataPath -Force | Out-Null
+    Write-LogProgress "Creating output directories..."
+    Write-LogDebug "Output path: $OutputPath, Data path: $dataPath"
+    New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
+    New-Item -ItemType Directory -Path $dataPath -Force | Out-Null
 
-# Build connection parameters for Connect-DbaInstance
-$connectParams = @{
-    SqlInstance = $SqlInstance
-}
-
-if ($Username -and $Password) {
-    $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
-    $credential = New-Object System.Management.Automation.PSCredential($Username, $securePassword)
-    $connectParams.SqlCredential = $credential
-    Write-LogInfo "Using SQL Server authentication" -Color "Blue"
-    Write-LogDebug "Username: $Username"
-} else {
-    Write-LogInfo "Using Windows authentication" -Color "Blue"
-}
-
-if ($TrustServerCertificate) {
-    $connectParams.TrustServerCertificate = $true
-    Write-LogWarning "Trusting server certificate (bypassing SSL validation)"
-    Write-LogDebug "TrustServerCertificate parameter added to connection"
-}
-
-# Test connection and get server instance
-Write-LogProgress "Testing database connection..."
-Write-LogDebug "Connection parameters: SqlInstance=$SqlInstance, Database=$Database"
-try {
-    $server = Connect-DbaInstance @connectParams
-    Write-LogTrace "Server connection established"
-
-    $testDatabase = Get-DbaDatabase -SqlInstance $server | Where-Object Name -eq $Database
-    if (-not $testDatabase) {
-        throw "Database '$Database' not found"
+    # Build connection parameters for Connect-DbaInstance
+    $connectParams = @{
+        SqlInstance = $SqlInstance
     }
-    Write-LogSuccess "Connected to database: $Database"
-    Write-LogDebug "Database object retrieved successfully"
-} catch {
-    Write-LogError "Failed to connect to database: $_"
-    exit 1
+
+    if ($Username -and $Password) {
+        $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
+        $credential = New-Object System.Management.Automation.PSCredential($Username, $securePassword)
+        $connectParams.SqlCredential = $credential
+        Write-LogInfo "Using SQL Server authentication" -Color "Blue"
+        Write-LogDebug "Username: $Username"
+    } else {
+        Write-LogInfo "Using Windows authentication" -Color "Blue"
+    }
+
+    if ($TrustServerCertificate) {
+        $connectParams.TrustServerCertificate = $true
+        Write-LogWarning "Trusting server certificate (bypassing SSL validation)"
+        Write-LogDebug "TrustServerCertificate parameter added to connection"
+    }
+
+    # Test connection and get server instance
+    Write-LogProgress "Testing database connection..."
+    Write-LogDebug "Connection parameters: SqlInstance=$SqlInstance, Database=$Database"
+    try {
+        $server = Connect-DbaInstance @connectParams
+        Write-LogTrace "Server connection established"
+
+        $testDatabase = Get-DbaDatabase -SqlInstance $server | Where-Object Name -eq $Database
+        if (-not $testDatabase) {
+            throw "Database '$Database' not found"
+        }
+        Write-LogSuccess "Connected to database: $Database"
+        Write-LogDebug "Database object retrieved successfully"
+    } catch {
+        Write-LogError "Failed to connect to database: $_"
+        return $false
+    }
+
+    # Build connection parameters for other dbatools commands
+    $connectionParams = @{
+        SqlInstance = $server
+        Database = $Database
+    }
+
+    # Export schema
+    try {
+        Export-DatabaseSchema -ConnectionParams $connectionParams -SchemaPath $schemaPath
+    } catch {
+        Write-LogError "Schema export failed: $_"
+        return $false
+    }
+
+    # Export table list
+    try {
+        Export-TableList -ConnectionParams $connectionParams -TablesListPath $tablesListPath
+    } catch {
+        Write-LogError "Table list export failed: $_"
+        return $false
+    }
+
+    # Export data using bash script
+    try {
+        $dataExportSuccess = Export-TableData -SqlInstance $SqlInstance -Database $Database -Username $Username -Password $Password -DataPath $dataPath -TablesListPath $tablesListPath -DataRowLimit $DataRowLimit -TrustServerCertificate $TrustServerCertificate
+        if (-not $dataExportSuccess) {
+            return $false
+        }
+    } catch {
+        Write-LogError "Data export failed: $_"
+        return $false
+    }
+
+    # Create archive
+    try {
+        Create-DatabaseArchive -OutputPath $OutputPath -TarFileName $TarFileName
+    } catch {
+        Write-LogError "Archive creation failed: $_"
+        return $false
+    }
+
+    return $true
 }
 
-# Build connection parameters for other dbatools commands
-$connectionParams = @{
-    SqlInstance = $server
-    Database = $Database
-}
+function Export-DatabaseSchema {
+    param(
+        [hashtable]$ConnectionParams,
+        [string]$SchemaPath
+    )
 
-Write-LogSection "EXPORTING SCHEMA"
+    Write-LogSection "EXPORTING SCHEMA"
 
-# Configure scripting options for schema export
-$scriptingOptions = New-DbaScriptingOption
-$scriptingOptions.ScriptSchema = $true
-$scriptingOptions.ScriptData = $false
-$scriptingOptions.Indexes = $true          # Include indexes (clustered and non-clustered)
-$scriptingOptions.DriForeignKeys = $true   # Include foreign keys
-$scriptingOptions.DriAllConstraints = $true  # Include all constraints (primary keys, foreign keys, etc.)
-$scriptingOptions.Triggers = $true         # Include triggers
-$scriptingOptions.IncludeDatabaseContext = $true
-$scriptingOptions.IncludeHeaders = $false
-$scriptingOptions.ScriptBatchTerminator = $true
-$scriptingOptions.AnsiFile = $true
+    # Configure scripting options for schema export
+    $scriptingOptions = New-DbaScriptingOption
+    $scriptingOptions.ScriptSchema = $true
+    $scriptingOptions.ScriptData = $false
+    $scriptingOptions.Indexes = $true          # Include indexes (clustered and non-clustered)
+    $scriptingOptions.DriForeignKeys = $true   # Include foreign keys
+    $scriptingOptions.DriAllConstraints = $true  # Include all constraints (primary keys, foreign keys, etc.)
+    $scriptingOptions.Triggers = $true         # Include triggers
+    $scriptingOptions.IncludeDatabaseContext = $true
+    $scriptingOptions.IncludeHeaders = $false
+    $scriptingOptions.ScriptBatchTerminator = $true
+    $scriptingOptions.AnsiFile = $true
 
-Write-LogProgress "Exporting database schema..."
-Write-LogDebug "Schema export configured with indexes, constraints, and triggers"
+    # Suppress verbose output unless at trace level
+    $currentLogLevel = Get-LogLevel
+    if ((Get-LogLevelValue $currentLogLevel) -lt 5) {
+        # Not at trace level - suppress verbose output
+        $scriptingOptions.WithDependencies = $false
+        $scriptingOptions.ToFileOnly = $true
+        Write-LogDebug "Suppressing verbose scripting output (not at trace level)"
+    } else {
+        Write-LogTrace "Allowing verbose scripting output at trace level"
+    }
 
-# Export complete database schema
-try {
+    Write-LogProgress "Exporting database schema..."
+    Write-LogDebug "Schema export configured with indexes, constraints, and triggers"
+
     # Determine output method based on log level
     $currentLogLevel = Get-LogLevel
     $isTraceLevel = (Get-LogLevelValue $currentLogLevel) -ge 5
@@ -275,7 +333,7 @@ try {
         if ($isTraceLevel) {
             # At trace level - direct file output with verbose console
             $exportParams = @{
-                FilePath = $schemaPath
+                FilePath = $SchemaPath
                 NoPrefix = $true
             }
 
@@ -286,7 +344,7 @@ try {
                 $exportParams.Append = $true
             }
 
-            & $config.Command @connectionParams | Export-DbaScript @exportParams
+            & $config.Command @ConnectionParams | Export-DbaScript @exportParams
 
         } else {
             # Below trace level - PassThru method to suppress verbose output
@@ -299,10 +357,10 @@ try {
                 $exportParams.ScriptingOptionsObject = $scriptingOptions
             }
 
-            $scriptContent = & $config.Command @connectionParams | Export-DbaScript @exportParams
+            $scriptContent = & $config.Command @ConnectionParams | Export-DbaScript @exportParams
 
             $fileParams = @{
-                FilePath = $schemaPath
+                FilePath = $SchemaPath
                 Encoding = "UTF8"
             }
             if (-not $config.IsFirst) {
@@ -313,97 +371,83 @@ try {
         }
     }
 
-    Write-LogSuccess "Schema exported to: $schemaPath"
-} catch {
-    Write-LogError "Failed to export schema: $_"
-    exit 1
+    Write-LogSuccess "Schema exported to: $SchemaPath"
 }
 
-Write-LogSection "EXPORTING TABLE LIST"
+function Export-TableList {
+    param(
+        [hashtable]$ConnectionParams,
+        [string]$TablesListPath
+    )
 
-# Get all tables and export list
-try {
-    $tables = Get-DbaDbTable @connectionParams
+    Write-LogSection "EXPORTING TABLE LIST"
+
+    # Get all tables and export list
+    $tables = Get-DbaDbTable @ConnectionParams
     $tableList = $tables | ForEach-Object {
         "$($_.Parent.Name).$($_.Schema).$($_.Name)"
     }
 
-    $tableList | Out-File -FilePath $tablesListPath -Encoding UTF8
-    Write-LogSuccess "Table list exported to: $tablesListPath"
+    $tableList | Out-File -FilePath $TablesListPath -Encoding UTF8
+    Write-LogSuccess "Table list exported to: $TablesListPath"
     Write-LogInfo "Found $($tables.Count) tables" -Color "Blue"
     Write-LogDebug "Table list format: Database.Schema.Table"
-} catch {
-    Write-LogError "Failed to export table list: $_"
-    exit 1
 }
 
-Write-LogSection "CALLING EXPORT DATA SCRIPT"
+function Export-TableData {
+    param(
+        [string]$SqlInstance,
+        [string]$Database,
+        [string]$Username,
+        [string]$Password,
+        [string]$DataPath,
+        [string]$TablesListPath,
+        [int]$DataRowLimit,
+        [switch]$TrustServerCertificate
+    )
 
-# Prepare parameters for bash script
-$bashScriptPath = Join-Path $PSScriptRoot "export-data.sh"
-Write-LogDebug "Bash script path: $bashScriptPath"
+    Write-LogSection "CALLING EXPORT DATA SCRIPT"
 
-if (-not (Test-Path $bashScriptPath)) {
-    Write-LogError "export-data.sh not found at: $bashScriptPath"
-    exit 1
-}
+    # Prepare parameters for bash script
+    $bashScriptPath = Join-Path $PSScriptRoot "export-data.sh"
+    Write-LogDebug "Bash script path: $bashScriptPath"
 
-# Build parameters for the bash script using proper arguments
-$bashArgs = @(
-    "-s", "'$SqlInstance'"
-    "-d", "'$Database'"
-    "-D", "'$dataPath'"
-    "-t", "'$tablesListPath'"
-)
+    if (-not (Test-Path $bashScriptPath)) {
+        Write-LogError "export-data.sh not found at: $bashScriptPath"
+        return $false
+    }
 
-# Add optional parameters
-if ($Username -and $Password) {
-    $bashArgs += "-u", "'$Username'"
-    $bashArgs += "-p", "'$Password'"
-}
+    # Convert relative paths to absolute paths for bash script
+    $absoluteDataPath = Resolve-Path $DataPath | Select-Object -ExpandProperty Path
+    $absoluteTablesPath = Resolve-Path $TablesListPath | Select-Object -ExpandProperty Path
 
-if ($DataRowLimit -gt 0) {
-    $bashArgs += "--row-limit", $DataRowLimit.ToString()
-}
+    # Build parameters for the bash script using proper arguments
+    $bashArgs = @(
+        "-s", $SqlInstance
+        "-d", $Database
+        "-D", $absoluteDataPath
+        "-t", $absoluteTablesPath
+    )
 
-if ($TrustServerCertificate) {
-    $bashArgs += "--trust-server-certificate"
-}
+    # Add optional parameters
+    if ($Username -and $Password) {
+        $bashArgs += "-u", $Username
+        $bashArgs += "-p", $Password
+    }
 
-Write-LogProgress "Calling export-data.sh with arguments..."
-Write-LogTrace "Script: $bashScriptPath"
-Write-LogDebug "Initial arguments: $($bashArgs -join ' ')"
+    if ($DataRowLimit -gt 0) {
+        $bashArgs += "--row-limit", $DataRowLimit.ToString()
+    }
 
-# Convert relative paths to absolute paths for bash script
-$absoluteDataPath = Resolve-Path $dataPath | Select-Object -ExpandProperty Path
-$absoluteTablesPath = Resolve-Path $tablesListPath | Select-Object -ExpandProperty Path
+    if ($TrustServerCertificate) {
+        $bashArgs += "--trust-server-certificate"
+    }
 
-# Update bash args with absolute paths
-$bashArgs = @(
-    "-s", $SqlInstance
-    "-d", $Database
-    "-D", $absoluteDataPath
-    "-t", $absoluteTablesPath
-)
+    Write-LogProgress "Calling export-data.sh with arguments..."
+    Write-LogTrace "Script: $bashScriptPath"
+    Write-LogDebug "Final arguments with absolute paths: $($bashArgs -join ' ')"
 
-# Add optional parameters
-if ($Username -and $Password) {
-    $bashArgs += "-u", $Username
-    $bashArgs += "-p", $Password
-}
-
-if ($DataRowLimit -gt 0) {
-    $bashArgs += "--row-limit", $DataRowLimit.ToString()
-}
-
-if ($TrustServerCertificate) {
-    $bashArgs += "--trust-server-certificate"
-}
-
-Write-LogDebug "Final arguments with absolute paths: $($bashArgs -join ' ')"
-
-# Execute the bash script with direct output (no capturing)
-try {
+    # Execute the bash script with direct output (no capturing)
     if (Get-Command bash -ErrorAction SilentlyContinue) {
         Write-LogTrace "Executing bash command with export-data.sh"
         Write-LogDebug "Full command: bash '$bashScriptPath' $($bashArgs -join ' ')"
@@ -414,63 +458,90 @@ try {
 
         if ($exitCode -eq 0) {
             Write-LogSuccess "Data export completed successfully"
+            return $true
         } elseif ($exitCode -eq 1) {
             Write-LogWarning "Data export completed with some failures - continuing with archive creation"
+            return $true
         } else {
             Write-LogError "Data export failed completely with exit code: $exitCode"
-            exit $exitCode
+            return $false
         }
     } else {
         Write-LogError "bash command not found. Please ensure bash is installed and in PATH."
-        exit 1
+        return $false
     }
-} catch {
-    Write-LogError "Failed to execute export-data.sh: $_"
-    Write-LogDebug "Exception details: $($_.Exception.Message)"
-    exit 1
 }
 
-Write-LogSection "CREATING ARCHIVE"
+function Create-DatabaseArchive {
+    param(
+        [string]$OutputPath,
+        [string]$TarFileName
+    )
 
-# Create tar.gz archive
-$tarPath = Join-Path (Split-Path $OutputPath -Parent) $TarFileName
+    Write-LogSection "CREATING ARCHIVE"
 
-try {
-    # Change to output directory for relative paths in tar
-    Push-Location $OutputPath
+    # Create tar.gz archive
+    $tarPath = Join-Path (Split-Path $OutputPath -Parent) $TarFileName
 
-    # Create tar.gz file
-    Write-LogDebug "Archive path: $tarPath"
-    if (Get-Command tar -ErrorAction SilentlyContinue) {
-        Write-LogProgress "Creating tar.gz archive using system tar..."
-        Write-LogTrace "Archive contents: schema.sql, tables.txt, data/"
-        & tar -czf $tarPath schema.sql tables.txt data/
+    try {
+        # Change to output directory for relative paths in tar
+        Push-Location $OutputPath
 
-        if ($LASTEXITCODE -eq 0) {
-            Write-LogSuccess "Archive created: $tarPath"
+        # Create tar.gz file
+        Write-LogDebug "Archive path: $tarPath"
+        if (Get-Command tar -ErrorAction SilentlyContinue) {
+            Write-LogProgress "Creating tar.gz archive using system tar..."
+            Write-LogTrace "Archive contents: schema.sql, tables.txt, data/"
+            & tar -czf $tarPath schema.sql tables.txt data/
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-LogSuccess "Archive created: $tarPath"
+            } else {
+                throw "tar command failed with exit code $LASTEXITCODE"
+            }
         } else {
-            throw "tar command failed with exit code $LASTEXITCODE"
+            # Fallback to PowerShell compression (creates .zip instead of .tar.gz)
+            $zipPath = $tarPath -replace '\.tar\.gz$', '.zip'
+            Write-LogWarning "tar not found, creating ZIP archive instead..."
+            Write-LogDebug "ZIP path: $zipPath"
+            Compress-Archive -Path "schema.sql", "tables.txt", "data" -DestinationPath $zipPath -Force
+            Write-LogSuccess "ZIP archive created: $zipPath"
         }
-    } else {
-        # Fallback to PowerShell compression (creates .zip instead of .tar.gz)
-        $zipPath = $tarPath -replace '\.tar\.gz$', '.zip'
-        Write-LogWarning "tar not found, creating ZIP archive instead..."
-        Write-LogDebug "ZIP path: $zipPath"
-        Compress-Archive -Path "schema.sql", "tables.txt", "data" -DestinationPath $zipPath -Force
-        Write-LogSuccess "ZIP archive created: $zipPath"
+    } finally {
+        Pop-Location
     }
-} catch {
-    Write-LogError "Failed to create archive: $_"
-    exit 1
-} finally {
-    Pop-Location
 }
 
-Write-LogSection "EXPORT COMPLETE"
-Write-LogSuccess "Database export completed successfully!"
-Write-LogInfo "Files created:" -Color "Blue"
-Write-LogInfo "  - Schema: $schemaPath" -Color "Gray"
-Write-LogInfo "  - Tables: $tablesListPath" -Color "Gray"
-Write-LogInfo "  - Data: $dataPath" -Color "Gray"
-Write-LogInfo "  - Archive: $tarPath" -Color "Gray"
-Write-LogDebug "Export process finished with all components"
+# Import required modules
+try {
+    Import-Module dbatools -ErrorAction Stop
+    Write-LogSuccess "dbatools module loaded"
+} catch {
+    Write-LogError "dbatools module not found. Install with: Install-Module dbatools -Scope CurrentUser"
+    exit 1
+}
+
+# Execute the main export process
+$success = Export-Database -SqlInstance $SqlInstance -Database $Database -Username $Username -Password $Password -OutputPath $OutputPath -TarFileName $TarFileName -ExcludeTables $ExcludeTables -DataRowLimit $DataRowLimit -TrustServerCertificate:$TrustServerCertificate
+
+if ($success) {
+    Write-LogSection "EXPORT COMPLETE"
+    Write-LogSuccess "Database export completed successfully!"
+
+    $schemaPath = Join-Path $OutputPath "schema.sql"
+    $tablesListPath = Join-Path $OutputPath "tables.txt"
+    $dataPath = Join-Path $OutputPath "data"
+    $tarPath = Join-Path (Split-Path $OutputPath -Parent) $TarFileName
+
+    Write-LogInfo "Files created:" -Color "Blue"
+    Write-LogInfo "  - Schema: $schemaPath" -Color "Gray"
+    Write-LogInfo "  - Tables: $tablesListPath" -Color "Gray"
+    Write-LogInfo "  - Data: $dataPath" -Color "Gray"
+    Write-LogInfo "  - Archive: $tarPath" -Color "Gray"
+    Write-LogDebug "Export process finished with all components"
+
+    exit 0
+} else {
+    Write-LogError "Database export failed!"
+    exit 1
+}
