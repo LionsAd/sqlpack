@@ -219,6 +219,7 @@ function Export-Database {
 
     # Export schema
     try {
+        #Write-LogSuccess "Connected to database..."
         Export-DatabaseSchema -ConnectionParams $connectionParams -SchemaPath $schemaPath
     } catch {
         Write-LogError "Schema export failed: $_"
@@ -270,26 +271,15 @@ function Export-DatabaseSchema {
     $scriptingOptions.ScriptSchema = $true
     $scriptingOptions.ScriptData = $false
     $scriptingOptions.Indexes = $true          # Include indexes (clustered and non-clustered)
-    $scriptingOptions.DriForeignKeys = $false  # Export foreign keys separately
-    $scriptingOptions.DriAllConstraints = $false  # Export constraints separately
+    $scriptingOptions.DriForeignKeys = $false # Export foreign keys separately
+    $scriptingOptions.DriAllConstraints = $false # Export constraints separately
     $scriptingOptions.DriPrimaryKey = $true    # Keep primary keys with tables
     $scriptingOptions.DriChecks = $false       # Export check constraints separately
     $scriptingOptions.Triggers = $false        # Export triggers separately
-    $scriptingOptions.IncludeDatabaseContext = $true
-    $scriptingOptions.IncludeHeaders = $false
+    $scriptingOptions.IncludeDatabaseContext = $false
+    $scriptingOptions.IncludeHeaders = $true
     $scriptingOptions.ScriptBatchTerminator = $true
     $scriptingOptions.AnsiFile = $true
-
-    # Suppress verbose output unless at trace level
-    $currentLogLevel = Get-LogLevel
-    if ((Get-LogLevelValue $currentLogLevel) -lt 5) {
-        # Not at trace level - suppress verbose output
-        $scriptingOptions.WithDependencies = $false
-        $scriptingOptions.ToFileOnly = $true
-        Write-LogDebug "Suppressing verbose scripting output (not at trace level)"
-    } else {
-        Write-LogTrace "Allowing verbose scripting output at trace level"
-    }
 
     Write-LogProgress "Exporting database schema..."
     Write-LogDebug "Schema export configured with indexes, constraints, and triggers"
@@ -298,40 +288,138 @@ function Export-DatabaseSchema {
     $currentLogLevel = Get-LogLevel
     $isTraceLevel = (Get-LogLevelValue $currentLogLevel) -ge 5
 
-    # Define export configurations (tables first, then constraints)
+    # Helper functions for database object retrieval with consistent parameters
+    function Get-DbaTables {
+        param([hashtable]$ConnectionParams)
+        Get-DbaDbTable @ConnectionParams  # Already excludes system tables by default
+    }
+
+    function Get-DbaViews {
+        param([hashtable]$ConnectionParams)
+        Get-DbaDbView @ConnectionParams -ExcludeSystemView
+    }
+
+    function Get-DbaStoredProcedures {
+        param([hashtable]$ConnectionParams)
+        Get-DbaDbStoredProcedure @ConnectionParams -ExcludeSystemSp
+    }
+
+    function Get-DbaUserDefinedFunctions {
+        param([hashtable]$ConnectionParams)
+        Get-DbaDbUdf @ConnectionParams -ExcludeSystemUdf
+    }
+
+    # SQL processing function to add IF NOT EXISTS checks
+    function Add-IfNotExistsToSql {
+        param([string]$FilePath)
+
+        $content = Get-Content $FilePath -Raw
+        $lines = $content -split "`n"
+        $processedLines = @()
+
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+
+            # Check if this line starts a CREATE TABLE statement
+            # Pattern matches: CREATE TABLE [schema].[table] or CREATE TABLE [table] (defaults to dbo)
+            if ($line -match '^CREATE TABLE\s+(?:\[?(\w+)\]?\.)?\[?(\w+)\]?') {
+                $schemaName = if ($matches[1]) { $matches[1] } else { "dbo" }
+                $tableName = $matches[2]
+
+                Write-LogDebug "Found CREATE TABLE for [$schemaName].[$tableName]"
+
+                # Add IF NOT EXISTS check before CREATE TABLE
+                $ifNotExistsCheck = @(
+                    "IF NOT EXISTS (",
+                    "    SELECT * FROM INFORMATION_SCHEMA.TABLES",
+                    "    WHERE TABLE_SCHEMA = '$schemaName'",
+                    "    AND TABLE_TYPE = 'BASE TABLE'",
+                    "    AND TABLE_NAME = '$tableName'",
+                    ")"
+                )
+
+                $processedLines += $ifNotExistsCheck
+                $processedLines += $line
+            }
+            else {
+                $processedLines += $line
+            }
+        }
+
+        return $processedLines -join "`n"
+    }
+
+    # Define export configurations - each component gets its own file
+    # Order: tables -> constraints -> procedures -> views -> functions
     $exportConfigs = @(
         @{
             Name = "tables"
-            Description = "Exporting tables (structure only)..."
-            Command = "Get-DbaDbTable"
+            Description = "Exporting tables..."
+            Command = "Get-DbaTables"
             UseScriptingOptions = $true
-            IsFirst = $true
+            FileName = "schema-tables.sql"
+        },
+        @{
+            Name = "constraints"
+            Description = "Exporting foreign keys and constraints..."
+            Command = "Get-DbaTables"
+            UseScriptingOptions = $true
+            FileName = "schema-constraints--unfiltered.sql"
+            OptionsKey = "constraints"
+            FilterToFile = "schema-constraints.sql"  # Filtered version
+        },
+        @{
+            Name = "stored procedures"
+            Description = "Exporting stored procedures..."
+            Command = "Get-DbaStoredProcedures"
+            UseScriptingOptions = $false
+            FileName = "schema-procedures.sql"
+        },
+        @{
+            Name = "user defined functions"
+            Description = "Exporting user defined functions..."
+            Command = "Get-DbaUserDefinedFunctions"
+            UseScriptingOptions = $false
+            FileName = "schema-functions.sql"
+        },
+        @{
+            Name = "views"
+            Description = "Exporting views..."
+            Command = "Get-DbaViews"
+            UseScriptingOptions = $true
+            FileName = "schema-views.sql"
+            OptionsKey = "views"
         }
+
     )
 
-    # Create separate scripting options for constraints
-    $constraintOptions = New-DbaScriptingOption
-    $constraintOptions.ScriptSchema = $true     # Must be true to script constraints
-    $constraintOptions.ScriptData = $false
-    $constraintOptions.Indexes = $false
-    $constraintOptions.DriForeignKeys = $true   # Only foreign keys
-    $constraintOptions.DriAllConstraints = $false
-    $constraintOptions.DriPrimaryKey = $false   # Already included with tables
-    $constraintOptions.DriChecks = $true        # Check constraints
-    $constraintOptions.Triggers = $true         # Triggers
-    $constraintOptions.IncludeDatabaseContext = $true
-    $constraintOptions.IncludeHeaders = $false
-    $constraintOptions.ScriptBatchTerminator = $true
-    $constraintOptions.AnsiFile = $true
-
-    # Add constraint export configuration
-    $exportConfigs += @{
-        Name = "constraints"
-        Description = "Exporting foreign keys and constraints..."
-        Command = "Get-DbaDbTable"
-        UseScriptingOptions = $true
-        CustomOptions = $constraintOptions
-        IsFirst = $false
+    # Create scripting options for different object types
+    $scriptingOptionsSets = @{
+        "default" = $scriptingOptions
+        "constraints" = (& {
+            $options = New-DbaScriptingOption
+            $options.ScriptSchema = $true
+            $options.ScriptData = $false
+            $options.Indexes = $false
+            $options.DriForeignKeys = $true
+            $options.DriAllConstraints = $false
+            $options.DriPrimaryKey = $false
+            $options.DriChecks = $true
+            $options.Triggers = $true
+            $options.IncludeDatabaseContext = $false
+            $options.IncludeHeaders = $true
+            $options.ScriptBatchTerminator = $true
+            $options.AnsiFile = $true
+            return $options
+        })
+        "views" = (& {
+            $options = New-DbaScriptingOption
+            $options.ScriptSchema = $true
+            $options.IncludeHeaders = $true
+            $options.ScriptBatchTerminator = $false
+            $options.AnsiFile = $true
+            return $options
+        })
     }
 
     if ($isTraceLevel) {
@@ -344,21 +432,21 @@ function Export-DatabaseSchema {
     foreach ($config in $exportConfigs) {
         Write-LogProgress $config.Description
 
+        $componentFilePath = Join-Path (Split-Path $SchemaPath -Parent) $config.FileName
+
         if ($isTraceLevel) {
             # At trace level - direct file output with verbose console
             $exportParams = @{
-                FilePath = $SchemaPath
+                FilePath = $componentFilePath
                 NoPrefix = $true
             }
 
             if ($config.UseScriptingOptions) {
-                $exportParams.ScriptingOptionsObject = if ($config.CustomOptions) { $config.CustomOptions } else { $scriptingOptions }
-            }
-            if (-not $config.IsFirst) {
-                $exportParams.Append = $true
+                $optionsKey = if ($config.OptionsKey) { $config.OptionsKey } else { "default" }
+                $exportParams.ScriptingOptionsObject = $scriptingOptionsSets[$optionsKey]
             }
 
-            & $config.Command @ConnectionParams | Export-DbaScript @exportParams
+            & $config.Command -ConnectionParams $ConnectionParams | Export-DbaScript @exportParams
 
         } else {
             # Below trace level - PassThru method to suppress verbose output
@@ -368,24 +456,60 @@ function Export-DatabaseSchema {
             }
 
             if ($config.UseScriptingOptions) {
-                $exportParams.ScriptingOptionsObject = if ($config.CustomOptions) { $config.CustomOptions } else { $scriptingOptions }
+                $optionsKey = if ($config.OptionsKey) { $config.OptionsKey } else { "default" }
+                $exportParams.ScriptingOptionsObject = $scriptingOptionsSets[$optionsKey]
             }
 
-            $scriptContent = & $config.Command @ConnectionParams | Export-DbaScript @exportParams
+            $scriptContent = & $config.Command -ConnectionParams $ConnectionParams | Export-DbaScript @exportParams
 
-            $fileParams = @{
-                FilePath = $SchemaPath
-                Encoding = "UTF8"
-            }
-            if (-not $config.IsFirst) {
-                $fileParams.Append = $true
-            }
+            $scriptContent | Out-File -FilePath $componentFilePath -Encoding UTF8
+        }
 
-            $scriptContent | Out-File @fileParams
+        Write-LogSuccess "$($config.Name) exported to: $($config.FileName)"
+
+        # Handle SQL processing for constraints
+        if ($config.FilterToFile) {
+            Write-LogProgress "Processing SQL with IF NOT EXISTS checks..."
+            $unfilteredPath = $componentFilePath
+            $filteredPath = Join-Path (Split-Path $SchemaPath -Parent) $config.FilterToFile
+
+            try {
+                $processedSql = Add-IfNotExistsToSql -FilePath $unfilteredPath
+                $processedSql | Out-File -FilePath $filteredPath -Encoding UTF8
+                Write-LogSuccess "Processed SQL exported to: $($config.FilterToFile)"
+            } catch {
+                Write-LogWarning "Failed to process SQL: $_"
+                # Copy unfiltered as fallback
+                Copy-Item $unfilteredPath $filteredPath
+                Write-LogInfo "Copied unfiltered SQL as fallback"
+            }
         }
     }
 
-    Write-LogSuccess "Schema exported to: $SchemaPath"
+    # Create schemas.txt file with ordered list of schema files
+    Write-LogProgress "Creating schemas.txt file with import order..."
+    $schemasListPath = Join-Path (Split-Path $SchemaPath -Parent) "schemas.txt"
+    $schemaFiles = @()
+
+    foreach ($config in $exportConfigs) {
+        # Use filtered file if it exists, otherwise use the main file
+        if ($config.FilterToFile) {
+            $fileName = $config.FilterToFile
+        } else {
+            $fileName = $config.FileName
+        }
+
+        $componentFilePath = Join-Path (Split-Path $SchemaPath -Parent) $fileName
+        if (Test-Path $componentFilePath) {
+            $schemaFiles += $fileName
+            Write-LogDebug "Added to schema import order: $fileName"
+        }
+    }
+
+    $schemaFiles | Out-File -FilePath $schemasListPath -Encoding UTF8
+    Write-LogSuccess "Schema import order exported to: $schemasListPath"
+    Write-LogInfo "Schema files will be imported in this order:" -Color "Blue"
+    $schemaFiles | ForEach-Object { Write-LogInfo "  - $_" -Color "Gray" }
 }
 
 function Export-TableList {
@@ -396,8 +520,14 @@ function Export-TableList {
 
     Write-LogSection "EXPORTING TABLE LIST"
 
+    # Helper function for table list export (matching schema export)
+    function Get-DbaTablesForList {
+        param([hashtable]$ConnectionParams)
+        Get-DbaDbTable @ConnectionParams  # Already excludes system tables by default
+    }
+
     # Get all tables and export list
-    $tables = Get-DbaDbTable @ConnectionParams
+    $tables = Get-DbaTablesForList -ConnectionParams $ConnectionParams
     $tableList = $tables | ForEach-Object {
         "$($_.Parent.Name).$($_.Schema).$($_.Name)"
     }
@@ -514,8 +644,8 @@ function Create-DatabaseArchive {
         Write-LogDebug "Archive path: $tarPath"
         if (Get-Command tar -ErrorAction SilentlyContinue) {
             Write-LogProgress "Creating tar.gz archive using system tar..."
-            Write-LogTrace "Archive contents: schema.sql, tables.txt, data/"
-            & tar -czf $tarPath schema.sql tables.txt data/
+            Write-LogTrace "Archive contents: schemas.txt, tables.txt, data/, schema-*.sql"
+            & tar -czf $tarPath schemas.txt tables.txt data/ schema-*.sql
 
             if ($LASTEXITCODE -eq 0) {
                 Write-LogSuccess "Archive created: $tarPath"
@@ -527,7 +657,8 @@ function Create-DatabaseArchive {
             $zipPath = $tarPath -replace '\.tar\.gz$', '.zip'
             Write-LogWarning "tar not found, creating ZIP archive instead..."
             Write-LogDebug "ZIP path: $zipPath"
-            Compress-Archive -Path "schema.sql", "tables.txt", "data" -DestinationPath $zipPath -Force
+            $archiveItems = @("schemas.txt", "tables.txt", "data") + (Get-ChildItem -Path "schema-*.sql" | Select-Object -ExpandProperty Name)
+            Compress-Archive -Path $archiveItems -DestinationPath $zipPath -Force
             Write-LogSuccess "ZIP archive created: $zipPath"
         }
     } finally {
@@ -551,13 +682,14 @@ try {
     Write-LogSection "EXPORT COMPLETE"
     Write-LogSuccess "Database export completed successfully!"
 
-    $schemaPath = Join-Path $OutputPath "schema.sql"
+    $schemasListPath = Join-Path $OutputPath "schemas.txt"
     $tablesListPath = Join-Path $OutputPath "tables.txt"
     $dataPath = Join-Path $OutputPath "data"
     $tarPath = if ([System.IO.Path]::IsPathRooted($TarFileName)) { $TarFileName } else { Join-Path (Get-Location).Path $TarFileName }
 
     Write-LogInfo "Files created:" -Color "Blue"
-    Write-LogInfo "  - Schema: $schemaPath" -Color "Gray"
+    Write-LogInfo "  - Schema files: $dataPath/schema-*.sql" -Color "Gray"
+    Write-LogInfo "  - Schema import order: $schemasListPath" -Color "Gray"
     Write-LogInfo "  - Tables: $tablesListPath" -Color "Gray"
     Write-LogInfo "  - Data: $dataPath" -Color "Gray"
     Write-LogInfo "  - Archive: $tarPath" -Color "Gray"
