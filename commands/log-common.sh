@@ -112,21 +112,58 @@ log_trace() {
 }
 
 # Special function for command execution with logging
+# Usage: log_exec "description" "log_file" command args...
+# Use "" for log_file to create a temp file
 log_exec() {
     local description="$1"
-    shift
+    local log_file="$2"
+    shift 2
     local cmd=("$@")
 
-    log_trace "Executing: ${cmd[*]}"
-
-    if [[ $(get_log_level) -ge 5 ]]; then
-        # At trace level, show command output
-        log_debug "Running: $description"
-        "${cmd[@]}"
-    else
-        # At other levels, suppress command output
-        "${cmd[@]}" >/dev/null 2>&1
+    # If empty string, create temp file
+    if [[ -z "$log_file" ]]; then
+        log_file=$(mktemp)
     fi
+
+    log_trace "Executing: ${cmd[*]}"
+    log_trace "Log file: $log_file"
+
+    local exit_code
+    local current_level
+    current_level=$(get_log_level)
+
+    if [[ $current_level -ge 5 ]]; then
+        # TRACE: Show output in real-time AND save to log file
+        log_debug "Running: $description"
+        echo -n > "$log_file"  # Truncate log file first
+        "${cmd[@]}" 2>&1 | tee "$log_file"
+        exit_code=${PIPESTATUS[0]}
+    else
+        # DEBUG and below: Capture to log file only
+        "${cmd[@]}" >"$log_file" 2>&1
+        exit_code=$?
+
+        if [[ $exit_code -ne 0 ]]; then
+            # On error: Always show last 3 lines
+            log_debug "Command failed with exit code $exit_code: $description"
+            if [[ -s "$log_file" ]]; then
+                local error_lines
+                error_lines=$(tail -3 "$log_file" | sed 's/^/         /')
+                echo -e "${YELLOW}         Error summary:${NC}"
+                echo -e "${GRAY}$error_lines${NC}"
+                echo -e "${YELLOW}         Full details in: ${CYAN}$log_file${NC}"
+            fi
+        else
+            log_debug "Command succeeded: $description"
+            # On success: Remove log file unless DEBUG level or higher
+            if [[ $current_level -lt 4 ]]; then
+                rm -f "$log_file"
+                log_trace "Removed log file (success, not in debug mode): $log_file"
+            fi
+        fi
+    fi
+
+    return $exit_code
 }
 
 # Convenience functions for sections (like the current === headers ===)

@@ -5,6 +5,13 @@
 
 set -euo pipefail
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source the common logging functions
+# shellcheck source=./log-common.sh
+source "$SCRIPT_DIR/log-common.sh"
+
 # Default values
 SQL_SERVER="localhost,1499"
 DATABASE=""
@@ -15,33 +22,9 @@ WORK_DIR="./db-import-work"
 FORCE_RECREATE=false
 SKIP_DATA=false
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-
-# Function to print colored output
+# Additional wrapper for section headers (maps to log_section)
 print_status() {
-    echo -e "${CYAN}=== $1 ===${NC}"
-}
-
-print_success() {
-    echo -e "${GREEN}✓ $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠ $1${NC}"
-}
-
-print_error() {
-    echo -e "${RED}✗ $1${NC}"
-}
-
-print_info() {
-    echo -e "${BLUE}$1${NC}"
+    log_section "$1"
 }
 
 # Function to show usage
@@ -77,6 +60,13 @@ EXAMPLES:
 
     # Import schema only
     $0 -a db-dump.tar.gz -d MyAppDev --skip-data
+
+LOGGING:
+    Use BASH_LOG environment variable to control output:
+    BASH_LOG=error      Only show errors (default)
+    BASH_LOG=info       Show info, warnings, and errors
+    BASH_LOG=debug      Show debug info + above
+    BASH_LOG=trace      Show command execution + above
 
 PREREQUISITES:
     - sqlcmd must be installed and in PATH
@@ -177,6 +167,7 @@ fi
 
 # Test database connection
 print_status "TESTING CONNECTION"
+echo sqlcmd "${SQLCMD_PARAMS[@]}" -Q "SELECT @@VERSION" -h -1
 if sqlcmd "${SQLCMD_PARAMS[@]}" -Q "SELECT @@VERSION" -h -1 > /dev/null 2>&1; then
     print_success "Connected to SQL Server: $SQL_SERVER"
 else

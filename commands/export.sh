@@ -5,28 +5,18 @@
 
 set -euo pipefail
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-print_info() {
-    echo -e "${BLUE}[INFO] $1${NC}"
-}
+# Source the common logging functions
+# shellcheck source=./log-common.sh
+source "$SCRIPT_DIR/log-common.sh"
 
-print_success() {
-    echo -e "${GREEN}[SUCCESS] $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING] $1${NC}"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR] $1${NC}"
-}
+# Inherit log level to PowerShell if PS_LOG_LEVEL is not set
+if [[ -z "${PS_LOG_LEVEL:-}" && -n "${BASH_LOG:-}" ]]; then
+    export PS_LOG_LEVEL="$BASH_LOG"
+    log_debug "Inherited log level to PowerShell: PS_LOG_LEVEL=$PS_LOG_LEVEL"
+fi
 
 # Default configuration - override with environment variables
 SQL_SERVER="${DB_SERVER:-localhost,1433}"
@@ -124,6 +114,9 @@ if [[ -z "$DATABASE" ]]; then
     exit 1
 fi
 
+log_debug "Configuration parsed - Server: $SQL_SERVER, Database: $DATABASE, Output: $OUTPUT_DIR"
+log_debug "Authentication: Username=$USERNAME, Trust cert: $TRUST_CERT, Row limit: $DATA_ROW_LIMIT"
+
 print_info "Starting database export..."
 print_info "Server: $SQL_SERVER"
 print_info "Database: $DATABASE"
@@ -175,7 +168,10 @@ fi
 
 # Run the export
 print_info "Executing PowerShell export script..."
-print_info "Command: $PWSH_CMD $PS_SCRIPT ${PS_ARGS[*]}"
+log_debug "PowerShell command: $PWSH_CMD"
+log_debug "Script: $PS_SCRIPT"
+log_debug "Arguments: ${PS_ARGS[*]}"
+log_trace "Full command: $PWSH_CMD $PS_SCRIPT ${PS_ARGS[*]}"
 
 if "$PWSH_CMD" "$PS_SCRIPT" "${PS_ARGS[@]}"; then
     print_success "Database export completed successfully!"

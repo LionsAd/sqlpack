@@ -5,34 +5,12 @@
 
 set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-GRAY='\033[0;37m'
-NC='\033[0m' # No Color
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Function to print colored output
-print_success() {
-    echo -e "${GREEN}✓ $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠ $1${NC}"
-}
-
-print_error() {
-    echo -e "${RED}✗ $1${NC}"
-}
-
-print_info() {
-    echo -e "${BLUE}$1${NC}"
-}
-
-print_debug() {
-    echo -e "${GRAY}$1${NC}"
-}
+# Source the common logging functions
+# shellcheck source=./log-common.sh
+source "$SCRIPT_DIR/log-common.sh"
 
 # Default values
 SERVER=""
@@ -64,6 +42,13 @@ OPTIONAL:
     --row-limit         Maximum rows per table (default: 0=unlimited)
     --trust-server-certificate  Trust server certificate
     -h, --help          Show this help message
+
+LOGGING:
+    Use BASH_LOG environment variable to control output:
+    BASH_LOG=error      Only show errors (default)
+    BASH_LOG=info       Show info, warnings, and errors
+    BASH_LOG=debug      Show debug info + above
+    BASH_LOG=trace      Show command execution + above
 
 EXAMPLES:
     # With SQL Server authentication
@@ -150,6 +135,10 @@ if [[ -z "$TABLES_FILE" ]]; then
     exit 1
 fi
 
+log_debug "Parameters validated - Server: $SERVER, Database: $DATABASE"
+log_debug "Data directory: $DATA_DIR, Tables file: $TABLES_FILE"
+log_debug "Authentication: Username='$USERNAME', Trust cert: $TRUST_CERT, Row limit: $ROW_LIMIT"
+
 # Validate inputs
 if [[ ! -f "$TABLES_FILE" ]]; then
     print_error "Tables file not found: $TABLES_FILE"
@@ -192,13 +181,14 @@ FORMAT_FAILED=0
 DATA_EXPORTED=0
 DATA_FAILED=0
 
-print_info ""
-print_info "=== GENERATING FORMAT FILES ==="
+log_section "GENERATING FORMAT FILES"
 
 # First pass: Generate format files
 while IFS= read -r table_line; do
     # Skip empty lines
     [[ -z "$table_line" ]] && continue
+
+    log_debug "Processing table line: $table_line"
 
     # Extract schema and table name from Database.Schema.Table format
     if [[ "$table_line" =~ ^[^.]+\.([^.]+)\.([^.]+)$ ]]; then
@@ -217,9 +207,10 @@ while IFS= read -r table_line; do
             "${BCP_AUTH_PARAMS[@]}"
         )
 
-        print_debug "Executing: ${FORMAT_CMD[*]}"
+        log_trace "Format command: ${FORMAT_CMD[*]}"
 
-        if "${FORMAT_CMD[@]}" >/dev/null 2>&1; then
+        FORMAT_LOG_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.format.log"
+        if log_exec "Generate format file for $SCHEMA_NAME.$TABLE_NAME" "$FORMAT_LOG_FILE" "${FORMAT_CMD[@]}"; then
             print_success "Created: $SCHEMA_NAME.$TABLE_NAME.fmt"
             ((FORMAT_CREATED++))
         else
@@ -236,13 +227,14 @@ print_info ""
 print_info "Format files created: $FORMAT_CREATED"
 print_info "Format files failed: $FORMAT_FAILED"
 
-print_info ""
-print_info "=== EXPORTING DATA ==="
+log_section "EXPORTING DATA"
 
 # Second pass: Export data using format files
 while IFS= read -r table_line; do
     # Skip empty lines
     [[ -z "$table_line" ]] && continue
+
+    log_debug "Processing table line for data export: $table_line"
 
     # Extract schema and table name
     if [[ "$table_line" =~ ^[^.]+\.([^.]+)\.([^.]+)$ ]]; then
@@ -274,9 +266,10 @@ while IFS= read -r table_line; do
             EXPORT_CMD+=("-L" "$ROW_LIMIT")
         fi
 
-        print_debug "Executing: ${EXPORT_CMD[*]}"
+        log_trace "Export command: ${EXPORT_CMD[*]}"
 
-        if "${EXPORT_CMD[@]}" >/dev/null 2>&1; then
+        DATA_LOG_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.data.log"
+        if log_exec "Export data for $SCHEMA_NAME.$TABLE_NAME" "$DATA_LOG_FILE" "${EXPORT_CMD[@]}"; then
             print_success "Exported: $SCHEMA_NAME.$TABLE_NAME.dat"
             ((DATA_EXPORTED++))
         else
@@ -289,8 +282,7 @@ while IFS= read -r table_line; do
     fi
 done < "$TABLES_FILE"
 
-print_info ""
-print_info "=== EXPORT SUMMARY ==="
+log_summary
 print_success "Format files created: $FORMAT_CREATED"
 if [[ $FORMAT_FAILED -gt 0 ]]; then
     print_warning "Format files failed: $FORMAT_FAILED"
@@ -309,7 +301,11 @@ print_info ""
 if [[ $FORMAT_FAILED -eq 0 && $DATA_FAILED -eq 0 ]]; then
     print_success "All exports completed successfully!"
     exit 0
+elif [[ $DATA_EXPORTED -gt 0 || $FORMAT_CREATED -gt 0 ]]; then
+    print_warning "Some exports failed, but continuing with partial data"
+    print_info "Successfully exported $DATA_EXPORTED tables, created $FORMAT_CREATED format files"
+    exit 1  # Partial success - continue with archive
 else
-    print_warning "Some exports failed. Check the output above for details."
-    exit 1
+    print_error "No exports succeeded - aborting"
+    exit 2  # Complete failure - abort
 fi
