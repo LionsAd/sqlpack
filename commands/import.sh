@@ -12,19 +12,54 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./log-common.sh
 source "$SCRIPT_DIR/log-common.sh"
 
-# Default values
+# Default values - some can be overridden by environment variables
 SQL_SERVER="localhost,1499"
 DATABASE=""
-USERNAME=""
-PASSWORD=""
+USERNAME="${DB_USERNAME:-}"
+PASSWORD="${DB_PASSWORD:-}"
 ARCHIVE_PATH=""
 WORK_DIR="./db-import-work"
 FORCE_RECREATE=false
 SKIP_DATA=false
+TRUST_SERVER_CERTIFICATE=false
 
 # Additional wrapper for section headers (maps to log_section)
 print_status() {
     log_section "$1"
+}
+
+# Common log file for SQL operations
+SQLCMD_LOG="/tmp/import-sqlcmd.log"
+
+# Helper function to drop database
+drop_database() {
+    local database="$1"
+
+    print_warning "Database '$database' exists. Dropping..."
+
+    local drop_sql="IF EXISTS (SELECT name FROM sys.databases WHERE name = '$database') BEGIN ALTER DATABASE [$database] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$database]; END"
+
+    if log_exec "Drop existing database" "$SQLCMD_LOG" sqlcmd "${SQLCMD_PARAMS[@]}" -Q "$drop_sql"; then
+        print_success "Database dropped"
+    else
+        print_error "Failed to drop existing database"
+        cat "$SQLCMD_LOG"
+        exit 1
+    fi
+}
+
+# Helper function to create database
+create_database() {
+    local database="$1"
+
+    print_info "Creating database: $database"
+    if log_exec "Create database $database" "$SQLCMD_LOG" sqlcmd "${SQLCMD_PARAMS[@]}" -Q "CREATE DATABASE [$database]"; then
+        print_success "Database created successfully"
+    else
+        print_error "Failed to create database '$database'"
+        cat "$SQLCMD_LOG"
+        exit 1
+    fi
 }
 
 # Function to show usage
@@ -46,7 +81,12 @@ OPTIONS:
     -w, --work-dir      Working directory for extraction (default: ./db-import-work)
     -f, --force         Force recreate database if it exists
     --skip-data         Import schema only, skip data import
+    --trust-server-certificate  Trust server certificate (bypass SSL validation)
     -h, --help          Show this help message
+
+ENVIRONMENT VARIABLES:
+    DB_USERNAME         Default SQL Server username
+    DB_PASSWORD         Default SQL Server password
 
 EXAMPLES:
     # Basic import with Windows auth
@@ -60,6 +100,14 @@ EXAMPLES:
 
     # Import schema only
     $0 -a db-dump.tar.gz -d MyAppDev --skip-data
+
+    # Using environment variables for credentials
+    export DB_USERNAME="sa"
+    export DB_PASSWORD="MyPassword"
+    $0 -a db-dump.tar.gz -d MyAppDev
+
+    # With SSL certificate trust (for self-signed certificates)
+    $0 -a db-dump.tar.gz -d MyAppDev -u sa -p MyPassword --trust-server-certificate
 
 LOGGING:
     Use BASH_LOG environment variable to control output:
@@ -108,6 +156,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-data)
             SKIP_DATA=true
+            shift
+            ;;
+        --trust-server-certificate)
+            TRUST_SERVER_CERTIFICATE=true
             shift
             ;;
         -h|--help)
@@ -165,40 +217,49 @@ else
     print_info "Using trusted connection"
 fi
 
+# Add trust server certificate if specified
+if [[ "$TRUST_SERVER_CERTIFICATE" == "true" ]]; then
+    SQLCMD_PARAMS+=("-C")
+    print_warning "Trusting server certificate (bypassing SSL validation)"
+fi
+
 # Test database connection
 print_status "TESTING CONNECTION"
-echo sqlcmd "${SQLCMD_PARAMS[@]}" -Q "SELECT @@VERSION" -h -1
-if sqlcmd "${SQLCMD_PARAMS[@]}" -Q "SELECT @@VERSION" -h -1 > /dev/null 2>&1; then
+log_debug "Testing connection with: sqlcmd ${SQLCMD_PARAMS[*]} -Q 'SELECT @@VERSION' -h -1"
+if log_exec "Testing SQL Server connection" "$SQLCMD_LOG" sqlcmd "${SQLCMD_PARAMS[@]}" -Q "SELECT @@VERSION" -h -1; then
     print_success "Connected to SQL Server: $SQL_SERVER"
 else
     print_error "Failed to connect to SQL Server: $SQL_SERVER"
+    print_error "Check server address, port, and authentication settings"
     exit 1
 fi
 
-# Check if database exists
+# Check if database exists and handle appropriately
 print_status "CHECKING DATABASE"
-DB_EXISTS=$(sqlcmd "${SQLCMD_PARAMS[@]}" -Q "SELECT COUNT(*) FROM sys.databases WHERE name='$DATABASE'" -h -1 2>/dev/null | tr -d ' \r\n' || echo "0")
 
-if [[ "$DB_EXISTS" == "1" ]]; then
-    if [[ "$FORCE_RECREATE" == true ]]; then
-        print_warning "Database '$DATABASE' exists. Dropping and recreating..."
-        sqlcmd "${SQLCMD_PARAMS[@]}" -Q "
-        IF EXISTS (SELECT name FROM sys.databases WHERE name = '$DATABASE')
-        BEGIN
-            ALTER DATABASE [$DATABASE] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-            DROP DATABASE [$DATABASE];
-        END"
-        print_success "Database dropped"
+log_debug "Checking if database '$DATABASE' exists"
+# Use direct sqlcmd execution to capture result (can't use log_exec as it removes the file)
+if sqlcmd "${SQLCMD_PARAMS[@]}" -Q "SELECT COUNT(*) FROM sys.databases WHERE name='$DATABASE'" -h -1 > "$SQLCMD_LOG" 2>&1; then
+    # Read the result from the log file and extract just the number
+    DB_EXISTS=$(cat "$SQLCMD_LOG" 2>/dev/null | grep -E "^\s*[0-9]+\s*$" | head -1 | tr -d ' \r\n' || echo "0")
+    log_debug "Database existence check result: '$DB_EXISTS'"
+
+    if [[ "$DB_EXISTS" == "1" ]]; then
+        if [[ "$FORCE_RECREATE" == true ]]; then
+            drop_database "$DATABASE"
+            create_database "$DATABASE"
+        else
+            print_error "Database '$DATABASE' already exists. Use -f/--force to recreate it."
+            exit 1
+        fi
     else
-        print_error "Database '$DATABASE' already exists. Use -f/--force to recreate it."
-        exit 1
+        create_database "$DATABASE"
     fi
+else
+    print_error "Failed to check database existence"
+    cat "$SQLCMD_LOG"
+    exit 1
 fi
-
-# Create database
-print_info "Creating database: $DATABASE"
-sqlcmd "${SQLCMD_PARAMS[@]}" -Q "CREATE DATABASE [$DATABASE]"
-print_success "Database created"
 
 # Extract archive
 print_status "EXTRACTING ARCHIVE"
@@ -223,12 +284,12 @@ fi
 print_success "Archive extracted"
 
 # Verify extracted files
-SCHEMA_FILE="$WORK_DIR/schema.sql"
+SCHEMAS_FILE="$WORK_DIR/schemas.txt"
 TABLES_FILE="$WORK_DIR/tables.txt"
 DATA_DIR="$WORK_DIR/data"
 
-if [[ ! -f "$SCHEMA_FILE" ]]; then
-    print_error "Schema file not found: $SCHEMA_FILE"
+if [[ ! -f "$SCHEMAS_FILE" ]]; then
+    print_error "Schemas file not found: $SCHEMAS_FILE"
     exit 1
 fi
 
@@ -246,36 +307,102 @@ print_success "All required files found"
 
 # Import schema
 print_status "IMPORTING SCHEMA"
-print_info "Executing schema.sql..."
 
-# Modify schema.sql to use the target database
-TEMP_SCHEMA="$WORK_DIR/schema_modified.sql"
-# Replace USE statements and add database context
-{
-    echo "USE [$DATABASE];"
-    echo "GO"
-    # Remove any existing USE statements and database context
-    sed -E 's/^USE \[.*\];?//g' "$SCHEMA_FILE" | sed '/^GO$/d'
-} > "$TEMP_SCHEMA"
+# Extract and create schemas first
+print_info "Creating database schemas..."
+log_debug "Reading tables from: $TABLES_FILE"
 
-if sqlcmd "${SQLCMD_PARAMS[@]}" -i "$TEMP_SCHEMA" > "$WORK_DIR/schema_import.log" 2>&1; then
-    print_success "Schema imported successfully"
-else
-    print_error "Schema import failed. Check log: $WORK_DIR/schema_import.log"
-    tail -20 "$WORK_DIR/schema_import.log"
+# Check if tables file has content
+if [[ ! -s "$TABLES_FILE" ]]; then
+    print_error "Tables file is empty: $TABLES_FILE"
     exit 1
 fi
+
+# Extract schemas with better error handling
+log_debug "Extracting schema names from tables file"
+SCHEMAS=$(cut -d. -f2 "$TABLES_FILE" | sort -u || true)
+
+if [[ -z "$SCHEMAS" ]]; then
+    print_warning "No schemas found in tables file, checking file format..."
+    log_debug "First few lines of tables file:"
+    head -5 "$TABLES_FILE" || true
+    print_info "Continuing without creating additional schemas (assuming dbo only)"
+else
+    log_debug "Found schemas: $SCHEMAS"
+
+    for schema in $SCHEMAS; do
+        if [[ "$schema" != "dbo" ]]; then
+            print_info "Creating schema: $schema"
+            if log_exec "Create schema $schema" "$SQLCMD_LOG" sqlcmd "${SQLCMD_PARAMS[@]}" -d "$DATABASE" -Q "CREATE SCHEMA [$schema]"; then
+                log_debug "Schema $schema created successfully"
+            else
+                print_warning "Failed to create schema $schema"
+            fi
+        fi
+    done
+fi
+
+print_info "Importing schema files in dependency order..."
+
+# Check if schemas file has content
+if [[ ! -s "$SCHEMAS_FILE" ]]; then
+    print_error "Schemas file is empty: $SCHEMAS_FILE"
+    exit 1
+fi
+
+# Create logs directory
+mkdir -p logs
+
+# Import each schema file in order
+# Use cat | while to avoid stdin issues with sqlcmd
+cat "$SCHEMAS_FILE" | while read -r schema_file; do
+    # Skip empty lines and clean up whitespace
+    schema_file=$(echo "$schema_file" | xargs)
+    [[ -z "$schema_file" ]] && continue
+
+    log_debug "Processing schema file: '$schema_file'"
+
+    SCHEMA_PATH="$WORK_DIR/$schema_file"
+
+    if [[ ! -f "$SCHEMA_PATH" ]]; then
+        print_warning "Schema file not found: $schema_file"
+        continue
+    fi
+
+    print_info "Importing schema: $schema_file"
+
+    SCHEMA_LOG="logs/import_$(basename "$schema_file" .sql).log"
+
+    # Use run-sqlcmd.sh wrapper with log_exec for proper error detection
+    exit_code=0
+    log_exec "Import schema file $schema_file" "$SCHEMA_LOG" "$SCRIPT_DIR/run-sqlcmd.sh" "${SQLCMD_PARAMS[@]}" -d "$DATABASE" -i "$SCHEMA_PATH" || exit_code=$?
+
+    case $exit_code in
+        0)
+            print_success "$schema_file"
+            ;;
+        2)
+            print_warning "$schema_file (with warnings)"
+            ;;
+        1|*)
+            print_error "✗ Failed: $schema_file"
+            ;;
+    esac
+
+done
+
+print_status "SCHEMA IMPORT COMPLETE"
+print_info "Schema import logs are available in: ./logs/"
 
 # Import data
 if [[ "$SKIP_DATA" == false ]]; then
     print_status "IMPORTING DATA"
 
-    # Read table list
-    mapfile -t TABLES < "$TABLES_FILE"
+    # Import data for each table
     IMPORTED_COUNT=0
     FAILED_COUNT=0
 
-    for TABLE_FULL in "${TABLES[@]}"; do
+    while read -r TABLE_FULL; do
         # Skip empty lines
         [[ -z "$TABLE_FULL" ]] && continue
 
@@ -284,13 +411,22 @@ if [[ "$SKIP_DATA" == false ]]; then
         if [[ "$TABLE_FULL" =~ ^[^.]+\.([^.]+)\.([^.]+)$ ]]; then
             SCHEMA_NAME="${BASH_REMATCH[1]}"
             TABLE_NAME="${BASH_REMATCH[2]}"
-            DATA_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.csv"
+            DATA_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.dat"
+            FORMAT_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.fmt"
 
-            if [[ -f "$DATA_FILE" ]]; then
-                print_info "Importing data: $SCHEMA_NAME.$TABLE_NAME"
+            if [[ -f "$DATA_FILE" && -f "$FORMAT_FILE" ]]; then
+                # Check if data file is empty - skip if so
+                if [[ ! -s "$DATA_FILE" ]]; then
+                    log_debug "Skipping empty data file: $SCHEMA_NAME.$TABLE_NAME"
+                    ((IMPORTED_COUNT++))
+                    continue
+                fi
 
-                # Build bcp command for import
-                BCP_PARAMS=("bcp" "[$DATABASE].[$SCHEMA_NAME].[$TABLE_NAME]" "in" "$DATA_FILE" "-c" "-t," "-r\\n" "-S" "$SQL_SERVER")
+                log_debug "Importing data: $SCHEMA_NAME.$TABLE_NAME"
+
+                # Build bcp command for import using format file with quoted identifiers
+                # With -q flag, use dot notation instead of bracket notation
+                BCP_PARAMS=("bcp" "$SCHEMA_NAME.$TABLE_NAME" "in" "$DATA_FILE" "-f" "$FORMAT_FILE" "-S" "$SQL_SERVER" "-d" "$DATABASE" "-q")
 
                 if [[ -n "$USERNAME" && -n "$PASSWORD" ]]; then
                     BCP_PARAMS+=("-U" "$USERNAME" "-P" "$PASSWORD")
@@ -298,11 +434,17 @@ if [[ "$SKIP_DATA" == false ]]; then
                     BCP_PARAMS+=("-T")
                 fi
 
-                if "${BCP_PARAMS[@]}" > "$WORK_DIR/import_${SCHEMA_NAME}_${TABLE_NAME}.log" 2>&1; then
-                    print_success "✓ $SCHEMA_NAME.$TABLE_NAME"
+                # Add trust server certificate if specified
+                if [[ "$TRUST_SERVER_CERTIFICATE" == "true" ]]; then
+                    BCP_PARAMS+=("-u")
+                fi
+
+                BCP_LOG_FILE="$WORK_DIR/import_${SCHEMA_NAME}_${TABLE_NAME}.log"
+                if log_exec "Import data for $SCHEMA_NAME.$TABLE_NAME" "$BCP_LOG_FILE" "${BCP_PARAMS[@]}"; then
+                    print_success "$SCHEMA_NAME.$TABLE_NAME"
                     ((IMPORTED_COUNT++))
                 else
-                    print_warning "✗ Failed: $SCHEMA_NAME.$TABLE_NAME"
+                    print_error "Failed: $SCHEMA_NAME.$TABLE_NAME"
                     ((FAILED_COUNT++))
                     # Show last few lines of error log
                     tail -5 "$WORK_DIR/import_${SCHEMA_NAME}_${TABLE_NAME}.log" | sed 's/^/    /'
@@ -315,7 +457,7 @@ if [[ "$SKIP_DATA" == false ]]; then
             print_warning "Invalid table format: $TABLE_FULL"
             ((FAILED_COUNT++))
         fi
-    done
+    done < "$TABLES_FILE"
 
     print_status "DATA IMPORT SUMMARY"
     print_success "Tables imported: $IMPORTED_COUNT"
