@@ -137,6 +137,68 @@ docker run -e "ACCEPT_EULA=1" -e "MSSQL_SA_PASSWORD=YourPassword123" \
 sqlcmd -S "localhost,1499" -U sa -P "YourPassword123" -d MyAppDev
 ```
 
+## Logging Configuration
+
+All scripts support configurable logging levels for better debugging and monitoring.
+
+### Bash Scripts Logging
+
+Use the `BASH_LOG` environment variable to control output verbosity:
+
+```bash
+# Default - only show errors
+./export.sh
+
+# Show informational messages
+BASH_LOG=info ./export.sh
+
+# Show debug information (parameter parsing, decisions)
+BASH_LOG=debug ./export-data.sh
+
+# Show all command executions (useful for troubleshooting)
+BASH_LOG=trace ./import.sh
+
+# Add timestamps to log messages
+BASH_LOG_TIMESTAMP=true BASH_LOG=debug ./export.sh
+```
+
+**Log Levels (in order of verbosity):**
+- `error` - Only errors (default)
+- `warn` - Warnings and errors
+- `info` - Informational messages, warnings, and errors
+- `debug` - Debug info plus all above levels
+- `trace` - Command execution details plus all above levels
+
+### PowerShell Logging
+
+Use the `PS_LOG_LEVEL` environment variable or command-line switches:
+
+```powershell
+# Default - informational level
+.\export.ps1 -SqlInstance "server" -Database "db"
+
+# Verbose output
+.\export.ps1 -SqlInstance "server" -Database "db" -Verbose
+
+# Debug output
+.\export.ps1 -SqlInstance "server" -Database "db" -Debug
+
+# Environment variable approach
+$env:PS_LOG_LEVEL = "Debug"
+.\export.ps1 -SqlInstance "server" -Database "db"
+
+# Add timestamps
+$env:PS_LOG_TIMESTAMP = "true"
+.\export.ps1 -SqlInstance "server" -Database "db" -Verbose
+```
+
+**PowerShell Log Levels:**
+- `Error` - Only errors
+- `Warning` - Warnings and errors
+- `Information` - Standard output (default)
+- `Verbose` - Detailed progress information
+- `Debug` - Internal debugging details
+
 ## Script Options
 
 ### export-database.ps1

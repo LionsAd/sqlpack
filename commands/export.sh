@@ -82,6 +82,10 @@ CONFIGURATION:
     DB_ROW_LIMIT (--row-limit)    Max rows per table (default: 0=unlimited)
     DB_TRUST_SERVER_CERTIFICATE (--trust-server-certificate) Trust server certificate (default: false)
 
+LOGGING:
+    BASH_LOG                    Log level: error,warn,info,debug,trace (default: error)
+    BASH_LOG_TIMESTAMP          Add timestamps: true/false (default: false)
+
 EXAMPLES:
     # Using environment variables
     export DB_SERVER="prod.server.com"
