@@ -169,6 +169,11 @@ BASH_LOG_TIMESTAMP=true BASH_LOG=debug ./export.sh
 - `debug` - Debug info plus all above levels
 - `trace` - Command execution details plus all above levels
 
+**Log Files:**
+- Import operations write detailed logs to `./logs/` directory
+- Individual schema import logs: `./logs/import_<filename>.log`
+- SQL command logs: `./logs/import-sqlcmd.log`
+
 ### PowerShell Logging
 
 Use the `PS_LOG_LEVEL` environment variable or command-line switches:

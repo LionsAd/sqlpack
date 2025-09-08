@@ -149,7 +149,7 @@ fi
 print_success "Found PowerShell: $PWSH_CMD"
 
 # Build PowerShell command
-PS_SCRIPT="./export.ps1"
+PS_SCRIPT="$SCRIPT_DIR/export.ps1"
 PS_ARGS=(
     "-SqlInstance" "$SQL_SERVER"
     "-Database" "$DATABASE"
