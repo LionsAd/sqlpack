@@ -227,7 +227,7 @@ while IFS= read -r table_line; do
         FULL_TABLE_NAME="$DATABASE.$SCHEMA_NAME.$TABLE_NAME"
         FORMAT_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.fmt"
 
-        print_info "Creating format file: $SCHEMA_NAME.$TABLE_NAME.fmt"
+        log_debug "Creating format file: $SCHEMA_NAME.$TABLE_NAME.fmt"
 
         # Build format command
         FORMAT_CMD=(
@@ -241,7 +241,7 @@ while IFS= read -r table_line; do
 
         FORMAT_LOG_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.format.log"
         if log_exec "Generate format file for $SCHEMA_NAME.$TABLE_NAME" "$FORMAT_LOG_FILE" "${FORMAT_CMD[@]}"; then
-            print_success "Created: $SCHEMA_NAME.$TABLE_NAME.fmt"
+            log_debug "Created: $SCHEMA_NAME.$TABLE_NAME.fmt"
             # Create empty data file at the same time
             DATA_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.dat"
             touch "$DATA_FILE"
@@ -292,7 +292,7 @@ while IFS= read -r table_line; do
             continue
         fi
 
-        print_info "Exporting data: $FULL_TABLE_NAME"
+        log_debug "Exporting data: $FULL_TABLE_NAME"
 
         # Build export command
         EXPORT_CMD=(
