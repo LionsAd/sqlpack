@@ -1,23 +1,29 @@
 # Database Export/Import Scripts
 
-A comprehensive solution for exporting SQL Server databases and importing them into developer environments using Azure SQL Edge.
+A comprehensive cross-platform solution for exporting SQL Server databases and importing them into developer environments.
 
 ## Overview
 
 This toolkit provides:
-- **export-database.ps1**: PowerShell script that exports complete database schema and data
-- **import-database.sh**: Shell script for importing the database into local development environments
-- **ci-export.sh**: CI-friendly wrapper script for automated exports
+- **export.ps1**: PowerShell script that exports complete database schema and data
+- **import.sh**: Shell script for importing the database into local development environments
+- **export.sh**: CI-friendly wrapper script for automated exports
+- **export-data.sh**: Data export script using bcp with native format files
 
 ## Files Created
 
 ```
 output/
-├── schema.sql              # Complete database schema (tables, views, SPs, functions)
-├── tables.txt              # List of all tables (DB.schema.name format)
+├── schemas.txt             # Ordered list of schema files for import
+├── schema-tables.sql       # Database tables
+├── schema-constraints.sql  # Foreign keys and constraints
+├── schema-procedures.sql   # Stored procedures
+├── schema-functions.sql    # User defined functions
+├── schema-views.sql        # Views
+├── tables.txt              # List of all tables (Database.Schema.Table format)
 ├── data/                   # Directory containing table data
-│   ├── dbo.Users.csv
-│   ├── dbo.Orders.csv
+│   ├── dbo.Users.dat       # Native format data files
+│   ├── dbo.Users.fmt       # BCP format files
 │   └── ...
 └── db-dump.tar.gz          # Compressed archive of all files
 ```
@@ -40,26 +46,26 @@ output/
 ### Basic Export
 ```powershell
 # Using PowerShell directly
-.\export-database.ps1 -SqlInstance "prod.server.com" -Database "MyApplication"
+.\export.ps1 -SqlInstance "prod.server.com" -Database "MyApplication"
 
 # Using CI wrapper (recommended for automation)
 export DB_SERVER="prod.server.com"
 export DB_NAME="MyApplication"
 export DB_USERNAME="backup_user"
 export DB_PASSWORD="secret123"
-./ci-export.sh
+./export.sh
 ```
 
 ### Advanced Export Options
 ```powershell
-# Export with row limits and exclusions
-.\export-database.ps1 `
+# Export with row limits and schema-only tables
+.\export.ps1 `
     -SqlInstance "localhost,1499" `
     -Database "MyApp" `
     -Username "sa" `
     -Password "MyPassword" `
     -DataRowLimit 10000 `
-    -ExcludeTables @("AuditLog", "TempData") `
+    -SchemaOnlyTables @("AuditLog", "TempData") `
     -OutputPath "./exports" `
     -TarFileName "myapp-dev-dump.tar.gz"
 ```
@@ -96,7 +102,7 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        run: ./ci-export.sh
+        run: ./export.sh
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
@@ -109,11 +115,11 @@ jobs:
 
 ### Basic Import
 ```bash
-# Import to local Azure SQL Edge
-./import-database.sh -a db-dump.tar.gz -d MyAppDev
+# Import to local SQL Server
+./import.sh -a db-dump.tar.gz -d MyAppDev
 
 # Import with custom server/auth
-./import-database.sh \
+./import.sh \
     -a db-dump.tar.gz \
     -d MyAppDev \
     -s "localhost,1499" \
@@ -131,7 +137,7 @@ docker run -e "ACCEPT_EULA=1" -e "MSSQL_SA_PASSWORD=YourPassword123" \
     -p 1499:1433 -d mcr.microsoft.com/azure-sql-edge
 
 # 3. Import the database
-./import-database.sh -a db-dump.tar.gz -d MyAppDev -s "localhost,1499" -u sa -p "YourPassword123"
+./import.sh -a db-dump.tar.gz -d MyAppDev -s "localhost,1499" -u sa -p "YourPassword123"
 
 # 4. Connect and develop
 sqlcmd -S "localhost,1499" -U sa -P "YourPassword123" -d MyAppDev
@@ -206,7 +212,7 @@ $env:PS_LOG_TIMESTAMP = "true"
 
 ## Script Options
 
-### export-database.ps1
+### export.ps1
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `-SqlInstance` | Yes | SQL Server instance (e.g., "localhost,1499") |
@@ -215,10 +221,10 @@ $env:PS_LOG_TIMESTAMP = "true"
 | `-Password` | No | SQL Server password |
 | `-OutputPath` | No | Output directory (default: "./output") |
 | `-TarFileName` | No | Archive filename (default: "db-dump.tar.gz") |
-| `-ExcludeTables` | No | Array of tables to exclude from data export |
+| `-SchemaOnlyTables` | No | Array of tables to export schema only (no data) |
 | `-DataRowLimit` | No | Maximum rows per table (default: unlimited) |
 
-### import-database.sh
+### import.sh
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `-a, --archive` | Yes | Path to db-dump.tar.gz file |
@@ -229,7 +235,7 @@ $env:PS_LOG_TIMESTAMP = "true"
 | `-f, --force` | No | Force recreate database if exists |
 | `--skip-data` | No | Import schema only, skip data |
 
-### ci-export.sh Environment Variables
+### export.sh Environment Variables
 | Variable | Description |
 |----------|-------------|
 | `DB_SERVER` | SQL Server instance |
@@ -277,7 +283,7 @@ Install-Module dbatools -Scope CurrentUser -Force
 **Database already exists**
 ```bash
 # Use force flag to recreate
-./import-database.sh -a db-dump.tar.gz -d MyAppDev -f
+./import.sh -a db-dump.tar.gz -d MyAppDev -f
 ```
 
 **Permission denied**
@@ -299,4 +305,4 @@ Install-Module dbatools -Scope CurrentUser -Force
 
 ## License
 
-This project is provided as-is for development and educational purposes.
+MIT License - see [LICENSE](LICENSE) file for details.
