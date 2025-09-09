@@ -181,7 +181,7 @@ if [[ ! -f "$PS_SCRIPT" ]]; then
 fi
 
 # Run the export
-print_info "Executing PowerShell export script..."
+log_debug "Executing PowerShell export script..."
 log_debug "PowerShell command: $PWSH_CMD"
 log_debug "Script: $PS_SCRIPT"
 log_debug "Arguments: ${PS_ARGS[*]}"

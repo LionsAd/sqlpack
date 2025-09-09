@@ -111,8 +111,11 @@ function Write-LogMessage {
             }
             "Information" {
                 $prefix = "[INFO]"
-                $color = if ($ForegroundColor) { $ForegroundColor } else { "Blue" }
-                Write-Host "${timestamp}${prefix} $Message" -ForegroundColor $color
+                if ($ForegroundColor) {
+                    Write-Host "${timestamp}${prefix} $Message" -ForegroundColor $ForegroundColor
+                } else {
+                    Write-Host "${timestamp}${prefix} $Message"
+                }
             }
             "Debug" {
                 $prefix = "[DEBUG]"
@@ -167,7 +170,7 @@ function Export-Database {
     $tablesListPath = Join-Path $OutputPath "tables.txt"
     $dataPath = Join-Path $OutputPath "data"
 
-    Write-LogProgress "Creating output directories..."
+    Write-LogDebug "Creating output directories..."
     Write-LogDebug "Output path: $OutputPath, Data path: $dataPath"
     New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
     New-Item -ItemType Directory -Path $dataPath -Force | Out-Null
@@ -181,10 +184,10 @@ function Export-Database {
         $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
         $credential = New-Object System.Management.Automation.PSCredential($Username, $securePassword)
         $connectParams.SqlCredential = $credential
-        Write-LogInfo "Using SQL Server authentication" -Color "Blue"
+        Write-LogDebug "Using SQL Server authentication"
         Write-LogDebug "Username: $Username"
     } else {
-        Write-LogInfo "Using Windows authentication" -Color "Blue"
+        Write-LogDebug "Using Windows authentication"
     }
 
     if ($TrustServerCertificate) {
@@ -194,7 +197,7 @@ function Export-Database {
     }
 
     # Test connection and get server instance
-    Write-LogProgress "Testing database connection..."
+    Write-LogDebug "Testing database connection..."
     Write-LogDebug "Connection parameters: SqlInstance=$SqlInstance, Database=$Database"
     try {
         $server = Connect-DbaInstance @connectParams
@@ -281,7 +284,7 @@ function Export-DatabaseSchema {
     $scriptingOptions.ScriptBatchTerminator = $true
     $scriptingOptions.AnsiFile = $true
 
-    Write-LogProgress "Exporting database schema..."
+    Write-LogDebug "Exporting database schema..."
     Write-LogDebug "Schema export configured with indexes, constraints, and triggers"
 
     # Determine output method based on log level
@@ -430,7 +433,7 @@ function Export-DatabaseSchema {
 
     # Process each export configuration
     foreach ($config in $exportConfigs) {
-        Write-LogProgress $config.Description
+        Write-LogDebug $config.Description
 
         $componentFilePath = Join-Path (Split-Path $SchemaPath -Parent) $config.FileName
 
@@ -469,7 +472,7 @@ function Export-DatabaseSchema {
 
         # Handle SQL processing for constraints
         if ($config.FilterToFile) {
-            Write-LogProgress "Processing SQL with IF NOT EXISTS checks..."
+            Write-LogDebug "Processing SQL with IF NOT EXISTS checks..."
             $unfilteredPath = $componentFilePath
             $filteredPath = Join-Path (Split-Path $SchemaPath -Parent) $config.FilterToFile
 
@@ -487,7 +490,7 @@ function Export-DatabaseSchema {
     }
 
     # Create schemas.txt file with ordered list of schema files
-    Write-LogProgress "Creating schemas.txt file with import order..."
+    Write-LogDebug "Creating schemas.txt file with import order..."
     $schemasListPath = Join-Path (Split-Path $SchemaPath -Parent) "schemas.txt"
     $schemaFiles = @()
 
@@ -592,7 +595,7 @@ function Export-TableData {
         $bashArgs += "--schema-only-tables", ($SchemaOnlyTables -join ",")
     }
 
-    Write-LogProgress "Calling export-data.sh with arguments..."
+    Write-LogDebug "Calling export-data.sh with arguments..."
     Write-LogTrace "Script: $bashScriptPath"
     Write-LogDebug "Final arguments with absolute paths: $($bashArgs -join ' ')"
 
@@ -643,7 +646,7 @@ function Create-DatabaseArchive {
         # Create tar.gz file
         Write-LogDebug "Archive path: $tarPath"
         if (Get-Command tar -ErrorAction SilentlyContinue) {
-            Write-LogProgress "Creating tar.gz archive using system tar..."
+            Write-LogDebug "Creating tar.gz archive using system tar..."
             Write-LogTrace "Archive contents: schemas.txt, tables.txt, data/, schema-*.sql"
             & tar -czf $tarPath schemas.txt tables.txt data/ schema-*.sql
 
