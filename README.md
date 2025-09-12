@@ -1,5 +1,7 @@
 # Database Export/Import Scripts
 
+[![CI](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml)
+
 A comprehensive cross-platform solution for exporting SQL Server databases and importing them into developer environments.
 
 ## Overview
