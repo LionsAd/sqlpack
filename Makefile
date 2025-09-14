@@ -29,7 +29,8 @@ clean:
 lint:
 	@if command -v shellcheck >/dev/null 2>&1; then \
 		echo "Running shellcheck..."; \
-		shellcheck -x $(ALL_SCRIPTS); \
+		shellcheck -x $(MAIN_SCRIPT); \
+		(cd commands && shellcheck -x *.sh); \
 	else \
 		echo "shellcheck not found; skipping lint. Install: https://www.shellcheck.net/"; \
 	fi

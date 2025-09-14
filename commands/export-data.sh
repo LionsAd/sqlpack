@@ -158,7 +158,7 @@ if [[ -n "$SCHEMA_ONLY_TABLES" ]]; then
     for table in "${SCHEMA_ONLY_ARRAY[@]}"; do
         table=$(echo "$table" | xargs)  # Trim whitespace
         # Escape dots for regex and create pattern that matches table name at end
-        escaped_table=$(echo "$table" | sed 's/\./\\./g')
+        escaped_table=${table//./"\\."}
         PATTERN_PARTS+=("\\.$escaped_table\$")
     done
 
@@ -266,7 +266,7 @@ log_section "EXPORTING DATA"
 # Second pass: Export data using format files (filter out schema-only tables)
 if [[ -n "$SCHEMA_ONLY_PATTERN" ]]; then
     log_debug "Filtering schema-only tables with pattern: $SCHEMA_ONLY_PATTERN"
-    FILTERED_TABLES=$(cat "$TABLES_FILE" | egrep -v "$SCHEMA_ONLY_PATTERN")
+    FILTERED_TABLES=$(cat "$TABLES_FILE" | grep -E -v "$SCHEMA_ONLY_PATTERN")
 else
     FILTERED_TABLES=$(cat "$TABLES_FILE")
 fi
