@@ -16,8 +16,6 @@ setup() {
   export BASH_LOG=info
   run log_info "Hello"
   [ "$status" -eq 0 ]
-  # Debug: show what we actually got
-  echo "DEBUG: output was: '$output'" >&3
   [[ "$output" == *"Hello"* ]]
 }
 
