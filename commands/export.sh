@@ -18,6 +18,12 @@ if [[ -z "${PS_LOG_LEVEL:-}" && -n "${BASH_LOG:-}" ]]; then
     log_debug "Inherited log level to PowerShell: PS_LOG_LEVEL=$PS_LOG_LEVEL"
 fi
 
+# Inherit timestamp setting to PowerShell if PS_LOG_TIMESTAMP is not set
+if [[ -z "${PS_LOG_TIMESTAMP:-}" ]]; then
+    export PS_LOG_TIMESTAMP="${BASH_LOG_TIMESTAMP:-false}"
+    log_debug "Inherited timestamp setting to PowerShell: PS_LOG_TIMESTAMP=$PS_LOG_TIMESTAMP"
+fi
+
 # Default configuration - override with environment variables
 SQL_SERVER="${DB_SERVER:-localhost,1433}"
 DATABASE="${DB_NAME:-}"
