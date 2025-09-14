@@ -47,7 +47,8 @@ level_to_number() {
 
 # Get current configured log level number
 get_log_level() {
-    level_to_number "$LOG_LEVEL"
+    # Use BASH_LOG if set, otherwise fall back to LOG_LEVEL
+    level_to_number "${BASH_LOG:-$LOG_LEVEL}"
 }
 
 # Get timestamp if enabled
