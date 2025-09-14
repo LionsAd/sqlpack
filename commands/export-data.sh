@@ -266,9 +266,9 @@ log_section "EXPORTING DATA"
 # Second pass: Export data using format files (filter out schema-only tables)
 if [[ -n "$SCHEMA_ONLY_PATTERN" ]]; then
     log_debug "Filtering schema-only tables with pattern: $SCHEMA_ONLY_PATTERN"
-    FILTERED_TABLES=$(cat "$TABLES_FILE" | grep -E -v "$SCHEMA_ONLY_PATTERN")
+    FILTERED_TABLES=$(grep -Ev "$SCHEMA_ONLY_PATTERN" "$TABLES_FILE")
 else
-    FILTERED_TABLES=$(cat "$TABLES_FILE")
+    FILTERED_TABLES=$(<"$TABLES_FILE")
 fi
 
 while IFS= read -r table_line; do
