@@ -163,7 +163,7 @@ log_exec() {
         fi
     fi
 
-    return $exit_code
+    return "$exit_code"
 }
 
 # Convenience functions for sections (like the current === headers ===)
