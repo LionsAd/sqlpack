@@ -1,29 +1,41 @@
 #!/usr/bin/env bats
 
+setup() {
+  # Load the log-common functions
+  source "${BATS_TEST_DIRNAME}/../commands/log-common.sh"
+}
+
 @test "log_info hidden at error level" {
-  run bash -lc 'BASH_LOG=error; source ../commands/log-common.sh; log_info "Hello"'
+  export BASH_LOG=error
+  run log_info "Hello"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
 @test "log_info shown at info level" {
-  run bash -lc 'BASH_LOG=info; source ../commands/log-common.sh; log_info "Hello"'
+  export BASH_LOG=info
+  run log_info "Hello"
   [ "$status" -eq 0 ]
-  echo "$output" | grep -q "Hello"
+  # Debug: show what we actually got
+  echo "DEBUG: output was: '$output'" >&3
+  [[ "$output" == *"Hello"* ]]
 }
 
 @test "log_error emits message (stderr merged)" {
-  run bash -lc 'BASH_LOG=error; source ../commands/log-common.sh; log_error "Boom" 2>&1'
+  export BASH_LOG=error
+  run log_error "Boom"
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "Boom"
 }
 
 @test "log_exec returns 0 on success" {
-  run bash -lc 'BASH_LOG=debug; source ../commands/log-common.sh; log_exec "ok" "" printf ok'
+  export BASH_LOG=debug
+  run log_exec "ok" "" printf ok
   [ "$status" -eq 0 ]
 }
 
 @test "log_exec returns non-zero on failure" {
-  run bash -lc 'BASH_LOG=debug; source ../commands/log-common.sh; log_exec "fail" "" bash -lc "exit 1"'
+  export BASH_LOG=debug
+  run log_exec "fail" "" bash -c "exit 1"
   [ "$status" -ne 0 ]
 }
