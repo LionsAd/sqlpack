@@ -1,4 +1,4 @@
-# Database Export/Import Scripts
+# SQLPack - Database Export/Import Utility
 
 [![CI](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml)
 
@@ -6,11 +6,29 @@ A comprehensive cross-platform solution for exporting SQL Server databases and i
 
 ## Overview
 
-This toolkit provides:
-- **export.ps1**: PowerShell script that exports complete database schema and data
-- **import.sh**: Shell script for importing the database into local development environments
-- **export.sh**: CI-friendly wrapper script for automated exports
-- **export-data.sh**: Data export script using bcp with native format files
+SQLPack provides a unified command-line interface for database operations:
+- **sqlpack export**: Export complete database schema and data
+- **sqlpack import**: Import database from archive into local environments
+- **sqlpack export-data**: Advanced data export using BCP with native format files
+
+The tool combines PowerShell and Bash scripts for maximum cross-platform compatibility.
+
+## Quick Start
+
+```bash
+# Install SQLPack
+sudo make install
+
+# Export a database
+sqlpack export --server localhost,1433 --database MyApp
+
+# Import to development environment
+sqlpack import --archive db-dump.tar.gz --database MyAppDev
+
+# Get help for any command
+sqlpack help
+sqlpack export --help
+```
 
 ## Files Created
 
@@ -43,33 +61,58 @@ output/
 - tar utility (usually pre-installed on Linux/macOS)
 - Azure SQL Edge or SQL Server running locally
 
-## Export Usage
+## Installation
+
+### System-wide Installation
+```bash
+# Install to /usr/local (requires sudo)
+sudo make install
+
+# Install to custom location (e.g., ~/.local)
+PREFIX=$HOME/.local make install
+
+# Make sure ~/.local/bin is in your PATH
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Development Usage
+```bash
+# Run directly from source
+./sqlpack help
+```
+
+### Uninstall
+```bash
+# Remove from system
+sudo make uninstall
+
+# Remove from custom location
+PREFIX=$HOME/.local make uninstall
+```
+
+## Usage
 
 ### Basic Export
-```powershell
-# Using PowerShell directly
-.\export.ps1 -SqlInstance "prod.server.com" -Database "MyApplication"
-
-# Using CI wrapper (recommended for automation)
+```bash
+# Export using environment variables
 export DB_SERVER="prod.server.com"
 export DB_NAME="MyApplication"
 export DB_USERNAME="backup_user"
 export DB_PASSWORD="secret123"
-./export.sh
+sqlpack export
+
+# Export with command-line options
+sqlpack export --server prod.server.com --database MyApplication
 ```
 
 ### Advanced Export Options
-```powershell
+```bash
 # Export with row limits and schema-only tables
-.\export.ps1 `
-    -SqlInstance "localhost,1499" `
-    -Database "MyApp" `
-    -Username "sa" `
-    -Password "MyPassword" `
-    -DataRowLimit 10000 `
-    -SchemaOnlyTables @("AuditLog", "TempData") `
-    -OutputPath "./exports" `
-    -TarFileName "myapp-dev-dump.tar.gz"
+DB_ROW_LIMIT=10000 \
+DB_SCHEMA_ONLY_TABLES="AuditLog,TempData" \
+DB_EXPORT_DIR="./exports" \
+DB_ARCHIVE_NAME="myapp-dev-dump.tar.gz" \
+sqlpack export --server localhost,1499 --database MyApp --username sa --password MyPassword
 ```
 
 ### CI/CD Integration
@@ -104,7 +147,7 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        run: ./export.sh
+        run: ./sqlpack export
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
@@ -113,20 +156,18 @@ jobs:
           path: db-dump.tar.gz
 ```
 
-## Import Usage
-
 ### Basic Import
 ```bash
 # Import to local SQL Server
-./import.sh -a db-dump.tar.gz -d MyAppDev
+sqlpack import --archive db-dump.tar.gz --database MyAppDev
 
 # Import with custom server/auth
-./import.sh \
-    -a db-dump.tar.gz \
-    -d MyAppDev \
-    -s "localhost,1499" \
-    -u sa \
-    -p MyPassword
+sqlpack import \
+    --archive db-dump.tar.gz \
+    --database MyAppDev \
+    --server "localhost,1499" \
+    --username sa \
+    --password MyPassword
 ```
 
 ### Developer Workflow
@@ -139,7 +180,7 @@ docker run -e "ACCEPT_EULA=1" -e "MSSQL_SA_PASSWORD=YourPassword123" \
     -p 1499:1433 -d mcr.microsoft.com/azure-sql-edge
 
 # 3. Import the database
-./import.sh -a db-dump.tar.gz -d MyAppDev -s "localhost,1499" -u sa -p "YourPassword123"
+sqlpack import --archive db-dump.tar.gz --database MyAppDev --server "localhost,1499" --username sa --password "YourPassword123"
 
 # 4. Connect and develop
 sqlcmd -S "localhost,1499" -U sa -P "YourPassword123" -d MyAppDev
@@ -155,19 +196,19 @@ Use the `BASH_LOG` environment variable to control output verbosity:
 
 ```bash
 # Default - only show errors
-./export.sh
+sqlpack export
 
 # Show informational messages
-BASH_LOG=info ./export.sh
+BASH_LOG=info sqlpack export
 
 # Show debug information (parameter parsing, decisions)
-BASH_LOG=debug ./export-data.sh
+BASH_LOG=debug sqlpack export-data
 
 # Show all command executions (useful for troubleshooting)
-BASH_LOG=trace ./import.sh
+BASH_LOG=trace sqlpack import
 
 # Add timestamps to log messages
-BASH_LOG_TIMESTAMP=true BASH_LOG=debug ./export.sh
+BASH_LOG_TIMESTAMP=true BASH_LOG=debug sqlpack export
 ```
 
 **Log Levels (in order of verbosity):**
@@ -280,7 +321,7 @@ Install-Module dbatools -Scope CurrentUser -Force
 **Database already exists**
 ```bash
 # Use force flag to recreate
-./import.sh -a db-dump.tar.gz -d MyAppDev -f
+sqlpack import --archive db-dump.tar.gz --database MyAppDev --force
 ```
 
 **Permission denied**
