@@ -31,6 +31,9 @@ print_status() {
 # Common log file for SQL operations
 SQLCMD_LOG="./logs/import-sqlcmd.log"
 
+# Ensure logs directory exists
+mkdir -p logs
+
 # Helper function to drop database
 drop_database() {
     local database="$1"
@@ -349,9 +352,6 @@ if [[ ! -s "$SCHEMAS_FILE" ]]; then
     print_error "Schemas file is empty: $SCHEMAS_FILE"
     exit 1
 fi
-
-# Create logs directory
-mkdir -p logs
 
 # Import each schema file in order
 # Use cat | while to avoid stdin issues with sqlcmd
