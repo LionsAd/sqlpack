@@ -7,6 +7,9 @@ MAIN_SCRIPT := sqlpack
 COMMAND_SCRIPTS := $(wildcard commands/*.sh)
 ALL_SCRIPTS := $(MAIN_SCRIPT) $(COMMAND_SCRIPTS)
 
+# Define all files to install from commands directory
+COMMAND_FILES := $(wildcard commands/*)
+
 PREFIX ?= /usr/local
 BINDIR = $(PREFIX)/bin
 LIBDIR = $(PREFIX)/lib
@@ -40,8 +43,8 @@ install:
 	install -d $(BINDIR)
 	install -d $(LIBDIR)/sqlpack/commands
 	install -m 755 sqlpack $(BINDIR)/sqlpack
-	for script in $(COMMAND_SCRIPTS); do \
-		install -m 755 "$$script" $(LIBDIR)/sqlpack/commands/; \
+	for file in $(COMMAND_FILES); do \
+		install -m 755 "$$file" $(LIBDIR)/sqlpack/commands/; \
 	done
 	@echo "SQLPack installed successfully!"
 	@echo "Run 'sqlpack help' to get started."
