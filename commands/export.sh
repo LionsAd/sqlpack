@@ -187,6 +187,10 @@ log_debug "Script: $PS_SCRIPT"
 log_debug "Arguments: ${PS_ARGS[*]}"
 log_trace "Full command: $PWSH_CMD $PS_SCRIPT ${PS_ARGS[*]}"
 
+# Pass timestamp setting to PowerShell
+export PS_LOG_TIMESTAMP="${BASH_LOG_TIMESTAMP:-false}"
+log_debug "PS_LOG_TIMESTAMP set to: $PS_LOG_TIMESTAMP"
+
 if "$PWSH_CMD" "$PS_SCRIPT" "${PS_ARGS[@]}"; then
     print_success "Database export completed successfully!"
 
