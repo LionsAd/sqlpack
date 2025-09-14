@@ -29,7 +29,7 @@ print_status() {
 }
 
 # Common log file for SQL operations
-SQLCMD_LOG="/tmp/import-sqlcmd.log"
+SQLCMD_LOG="./logs/import-sqlcmd.log"
 
 # Helper function to drop database
 drop_database() {
