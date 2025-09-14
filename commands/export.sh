@@ -18,6 +18,12 @@ if [[ -z "${PS_LOG_LEVEL:-}" && -n "${BASH_LOG:-}" ]]; then
     log_debug "Inherited log level to PowerShell: PS_LOG_LEVEL=$PS_LOG_LEVEL"
 fi
 
+# Inherit timestamp setting to PowerShell if PS_LOG_TIMESTAMP is not set
+if [[ -z "${PS_LOG_TIMESTAMP:-}" ]]; then
+    export PS_LOG_TIMESTAMP="${BASH_LOG_TIMESTAMP:-false}"
+    log_debug "Inherited timestamp setting to PowerShell: PS_LOG_TIMESTAMP=$PS_LOG_TIMESTAMP"
+fi
+
 # Default configuration - override with environment variables
 SQL_SERVER="${DB_SERVER:-localhost,1433}"
 DATABASE="${DB_NAME:-}"
@@ -186,10 +192,6 @@ log_debug "PowerShell command: $PWSH_CMD"
 log_debug "Script: $PS_SCRIPT"
 log_debug "Arguments: ${PS_ARGS[*]}"
 log_trace "Full command: $PWSH_CMD $PS_SCRIPT ${PS_ARGS[*]}"
-
-# Pass timestamp setting to PowerShell
-export PS_LOG_TIMESTAMP="${BASH_LOG_TIMESTAMP:-false}"
-log_debug "PS_LOG_TIMESTAMP set to: $PS_LOG_TIMESTAMP"
 
 if "$PWSH_CMD" "$PS_SCRIPT" "${PS_ARGS[@]}"; then
     print_success "Database export completed successfully!"
