@@ -41,7 +41,7 @@ param(
 
     [string]$Username,
     [string]$Password,
-    [string]$OutputPath = "./output",
+    [string]$OutputPath = "./db-export",
     [string]$TarFileName = "db-dump.tar.gz",
     [string[]]$ExcludeTables = @(),
     [string[]]$SchemaOnlyTables = @(),
