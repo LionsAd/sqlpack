@@ -58,8 +58,8 @@ bcp -?
 ```
 
 Microsoft docs:
-- Install SQL Server command-line tools on macOS: https://learn.microsoft.com/sql/linux/sql-server-linux-setup-tools?view=sql-server-ver17#macos
-- ODBC Driver 18 for SQL Server: https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server
+- [Install SQL Server command-line tools on macOS](https://learn.microsoft.com/sql/linux/sql-server-linux-setup-tools?view=sql-server-ver17#macos)
+- [ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
 
 ### Ubuntu/Debian (summary)
 
@@ -74,7 +74,7 @@ sqlcmd -?
 ```
 
 Microsoft docs:
-- Linux tools install (Ubuntu/Debian/RHEL/Fedora): https://learn.microsoft.com/sql/linux/sql-server-linux-setup-tools?view=sql-server-ver17
+- [Linux tools install (Ubuntu/Debian/RHEL/Fedora)](https://learn.microsoft.com/sql/linux/sql-server-linux-setup-tools?view=sql-server-ver17)
 
 ## Install PowerShell and dbatools
 
@@ -95,7 +95,7 @@ pwsh -NoLogo -NoProfile -Command "Import-Module dbatools; Get-Module dbatools"
 ```
 
 Microsoft docs:
-- Install PowerShell on macOS: https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-macos?view=powershell-7.4
+- [Install PowerShell on macOS](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-macos?view=powershell-7.4)
 
 ### Ubuntu/Debian (summary)
 
@@ -105,7 +105,7 @@ pwsh -NoLogo -NoProfile -Command "Install-Module dbatools -Scope CurrentUser -Fo
 ```
 
 Microsoft docs:
-- Install PowerShell on Linux: https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.4
+- [Install PowerShell on Linux](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.4)
 
 dbatools docs:
-- Install dbatools: https://dbatools.io/install/
+- [Install dbatools](https://dbatools.io/install/)
