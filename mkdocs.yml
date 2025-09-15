@@ -34,9 +34,9 @@ nav:
     - Export: commands/export.md
     - Import: commands/import.md
     - Export Data (BCP): commands/export-data.md
+    - Doctor: commands/doctor.md
   - Configuration: configuration.md
   - Logging: logging.md
   - CI/CD: ci.md
   - Development: develop.md
   - FAQ: faq.md
-
