@@ -19,6 +19,9 @@ The tool combines PowerShell and Bash scripts for maximum cross-platform compati
 # Install SQLPack
 sudo make install
 
+# Validate your environment
+sqlpack doctor
+
 # Export a database
 sqlpack export --server localhost,1433 --database MyApp
 
@@ -29,6 +32,14 @@ sqlpack import --archive db-dump.tar.gz --database MyAppDev
 sqlpack help
 sqlpack export --help
 ```
+
+## Prerequisites (Tools)
+
+Ensure these tools are installed and on PATH:
+- sqlcmd and bcp (mssql-tools18). See docs: docs/install.md
+- PowerShell 7+ (`pwsh`)
+- dbatools PowerShell module (see https://docs.dbatools.io/)
+- tar utility (macOS/Linux)
 
 ## Files Created
 
