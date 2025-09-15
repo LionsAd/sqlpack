@@ -35,8 +35,10 @@ sqlpack export --help
 
 ## Prerequisites (Tools)
 
+See installation steps in [docs/install.md](docs/install.md).
+
 Ensure these tools are installed and on PATH:
-- sqlcmd and bcp (mssql-tools18). See docs: docs/install.md
+- sqlcmd and bcp (mssql-tools18)
 - PowerShell 7+ (`pwsh`)
 - dbatools PowerShell module (see https://docs.dbatools.io/)
 - tar utility (macOS/Linux)
