@@ -245,7 +245,7 @@ log_debug "Checking if database '$DATABASE' exists"
 # Use direct sqlcmd execution to capture result (can't use log_exec as it removes the file)
 if sqlcmd "${SQLCMD_PARAMS[@]}" -Q "SELECT COUNT(*) FROM sys.databases WHERE name='$DATABASE'" -h -1 > "$SQLCMD_LOG" 2>&1; then
     # Read the result from the log file and extract just the number
-    DB_EXISTS=$(cat "$SQLCMD_LOG" 2>/dev/null | grep -E "^\s*[0-9]+\s*$" | head -1 | tr -d ' \r\n' || echo "0")
+    DB_EXISTS=$(grep -E "^\s*[0-9]+\s*$" "$SQLCMD_LOG" 2>/dev/null | head -1 | tr -d ' \r\n' || echo "0")
     log_debug "Database existence check result: '$DB_EXISTS'"
 
     if [[ "$DB_EXISTS" == "1" ]]; then
@@ -356,6 +356,7 @@ fi
 
 # Import each schema file in order
 # Use cat | while to avoid stdin issues with sqlcmd
+# shellcheck disable=SC2002
 cat "$SCHEMAS_FILE" | while read -r schema_file; do
     # Skip empty lines and clean up whitespace
     schema_file=$(echo "$schema_file" | xargs)
