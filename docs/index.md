@@ -19,6 +19,7 @@ sqlpack help
 sqlpack export --help
 ```
 
+- Run `sqlpack doctor` to validate your environment.
 - Prerequisites: `sqlcmd` (mssql-tools18), PowerShell, and the dbatools module. See [Installation](install.md) for setup.
 - See Installation for system and dev setup.
 - See Usage for an overview and common flows.
