@@ -19,6 +19,7 @@ sqlpack help
 sqlpack export --help
 ```
 
+- Prerequisites: `sqlcmd` (mssql-tools18), PowerShell, and the dbatools module. See [Installation](install.md) for setup.
 - See Installation for system and dev setup.
 - See Usage for an overview and common flows.
 - See Commands for detailed options per subcommand.
@@ -31,4 +32,3 @@ sqlpack export --help
 ## Links
 - Repository: https://github.com/LionsAd/sqlpack
 - Issues: https://github.com/LionsAd/sqlpack/issues
-
