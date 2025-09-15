@@ -32,8 +32,10 @@ sqlpack export --help
 
 ## Files Created
 
+Default output directory for exports is `./db-export`.
+
 ```
-output/
+db-export/
 ├── schemas.txt             # Ordered list of schema files for import
 ├── schema-tables.sql       # Database tables
 ├── schema-constraints.sql  # Foreign keys and constraints
@@ -45,7 +47,8 @@ output/
 │   ├── dbo.Users.dat       # Native format data files
 │   ├── dbo.Users.fmt       # BCP format files
 │   └── ...
-└── db-dump.tar.gz          # Compressed archive of all files
+
+db-dump.tar.gz              # Compressed archive of files above (created in CWD)
 ```
 
 ## Prerequisites
@@ -229,21 +232,21 @@ Use the `PS_LOG_LEVEL` environment variable or command-line switches:
 
 ```powershell
 # Default - informational level
-.\export.ps1 -SqlInstance "server" -Database "db"
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db"
 
 # Verbose output
-.\export.ps1 -SqlInstance "server" -Database "db" -Verbose
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db" -Verbose
 
 # Debug output
-.\export.ps1 -SqlInstance "server" -Database "db" -Debug
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db" -Debug
 
 # Environment variable approach
 $env:PS_LOG_LEVEL = "Debug"
-.\export.ps1 -SqlInstance "server" -Database "db"
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db"
 
 # Add timestamps
 $env:PS_LOG_TIMESTAMP = "true"
-.\export.ps1 -SqlInstance "server" -Database "db" -Verbose
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db" -Verbose
 ```
 
 **PowerShell Log Levels:**
@@ -262,10 +265,11 @@ $env:PS_LOG_TIMESTAMP = "true"
 | `-Database` | Yes | Database name to export |
 | `-Username` | No | SQL Server username (uses Windows auth if omitted) |
 | `-Password` | No | SQL Server password |
-| `-OutputPath` | No | Output directory (default: "./output") |
+| `-OutputPath` | No | Output directory (default: "./db-export") |
 | `-TarFileName` | No | Archive filename (default: "db-dump.tar.gz") |
 | `-SchemaOnlyTables` | No | Array of tables to export schema only (no data) |
 | `-DataRowLimit` | No | Maximum rows per table (default: unlimited) |
+| `-TrustServerCertificate` | No | Trust server certificate (bypass SSL validation) |
 
 ### import.sh
 | Parameter | Required | Description |
@@ -277,6 +281,8 @@ $env:PS_LOG_TIMESTAMP = "true"
 | `-p, --password` | No | SQL Server password |
 | `-f, --force` | No | Force recreate database if exists |
 | `--skip-data` | No | Import schema only, skip data |
+| `-w, --work-dir` | No | Working directory for extraction (default: "./db-import-work") |
+| `--trust-server-certificate` | No | Trust server certificate (bypass SSL validation) |
 
 ### export.sh Environment Variables
 | Variable | Description |
@@ -293,7 +299,7 @@ $env:PS_LOG_TIMESTAMP = "true"
 
 ### Export Performance
 - Use `DataRowLimit` for large tables in development environments
-- Exclude unnecessary tables (logs, temp data) with `ExcludeTables`
+- For large or nonessential tables, prefer `SchemaOnlyTables` to export only schema (no data)
 - Run exports during off-peak hours
 - Consider network bandwidth between CI and database server
 
