@@ -32,6 +32,7 @@ COMMANDS:
     export        Export database schema and data
     import        Import database from archive
     export-data   Export data using BCP (advanced)
+    doctor        Check required tools are installed
     version       Show version information
     help          Show this help message
 
@@ -93,7 +94,7 @@ if [[ $# -eq 0 ]]; then
 fi
 
 case "${1:-}" in
-    export|import|export-data)
+    export|import|export-data|doctor)
         execute_command "$@"
         ;;
     version|--version|-v)
