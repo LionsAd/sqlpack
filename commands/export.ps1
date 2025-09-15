@@ -17,8 +17,6 @@
     Base output directory (default: ./output)
 .PARAMETER TarFileName
     Name of the final tar.gz file (default: db-dump.tar.gz)
-.PARAMETER ExcludeTables
-    Array of tables to exclude from data export (schema still exported)
 .PARAMETER SchemaOnlyTables
     Array of tables to export schema only (no data), like mysqldump --schema-only-tables
 .PARAMETER DataRowLimit
@@ -43,7 +41,6 @@ param(
     [string]$Password,
     [string]$OutputPath = "./db-export",
     [string]$TarFileName = "db-dump.tar.gz",
-    [string[]]$ExcludeTables = @(),
     [string[]]$SchemaOnlyTables = @(),
     [int]$DataRowLimit = 0,
     [switch]$TrustServerCertificate
@@ -159,7 +156,6 @@ function Export-Database {
         [string]$Password,
         [string]$OutputPath,
         [string]$TarFileName,
-        [string[]]$ExcludeTables,
         [string[]]$SchemaOnlyTables,
         [int]$DataRowLimit,
         [switch]$TrustServerCertificate
@@ -680,7 +676,7 @@ try {
 
 # Execute the main export process
 try {
-    Export-Database -SqlInstance $SqlInstance -Database $Database -Username $Username -Password $Password -OutputPath $OutputPath -TarFileName $TarFileName -ExcludeTables $ExcludeTables -SchemaOnlyTables $SchemaOnlyTables -DataRowLimit $DataRowLimit -TrustServerCertificate:$TrustServerCertificate
+    Export-Database -SqlInstance $SqlInstance -Database $Database -Username $Username -Password $Password -OutputPath $OutputPath -TarFileName $TarFileName -SchemaOnlyTables $SchemaOnlyTables -DataRowLimit $DataRowLimit -TrustServerCertificate:$TrustServerCertificate
 
     Write-LogSection "EXPORT COMPLETE"
     Write-LogSuccess "Database export completed successfully!"
