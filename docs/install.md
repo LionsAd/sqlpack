@@ -108,4 +108,4 @@ Microsoft docs:
 - [Install PowerShell on Linux](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.4)
 
 dbatools docs:
-- [Install dbatools](https://dbatools.io/install/)
+- [dbatools documentation](https://docs.dbatools.io/)
