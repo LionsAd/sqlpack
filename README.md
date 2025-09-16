@@ -11,7 +11,7 @@ SQLPack provides a unified command-line interface for database operations:
 - **sqlpack import**: Import database from archive into local environments
 - **sqlpack export-data**: Advanced data export using BCP with native format files
 - **sqlpack doctor**: Validate required tools and environment
-- **sqlpack install**: Print or execute dependency install commands (macOS/Debian)
+- **sqlpack install-tools**: Print or execute dependency install commands (macOS/Debian)
 
 The tool combines PowerShell and Bash scripts for maximum cross-platform compatibility.
 
@@ -22,8 +22,8 @@ The tool combines PowerShell and Bash scripts for maximum cross-platform compati
 sudo make install
 
 # Validate your environment
-sqlpack install           # Preview install commands for missing deps
-sqlpack install --execute # Run the commands
+sqlpack install-tools           # Preview install commands for missing deps
+sqlpack install-tools --execute # Run the commands
 sqlpack doctor
 
 # Export a database
