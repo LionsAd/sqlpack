@@ -4,26 +4,38 @@ A cross-platform toolkit to export SQL Server databases and import them into dev
 
 ## Quick Start
 
+Prerequisites (tools): see Installation for setup. You need `sqlcmd` and `bcp` (mssql-tools18), PowerShell 7+ (`pwsh`), and the dbatools module.
+
 ```bash
-# Install to /usr/local (requires sudo)
+# 1) Install SQLPack (to /usr/local; use PREFIX for custom path)
 sudo make install
 
-# Export a database (creates ./db-export and db-dump.tar.gz)
+# 2) Install required tools (preview or execute)
+# Preview the commands for your OS
+sqlpack install-tools
+# Execute them automatically (macOS Homebrew or Ubuntu/Debian apt)
+sqlpack install-tools --execute
+
+# 3) Validate your environment (PowerShell, dbatools, sqlcmd, bcp)
+sqlpack doctor
+
+# 4) Export a database (creates ./db-export and db-dump.tar.gz)
 sqlpack export --server localhost,1433 --database MyApp
 
-# Import into a local dev instance
+# 5) Import into a local dev instance
 sqlpack import --archive db-dump.tar.gz --database MyAppDev
 
-# Help
+# 6) Explore help for flags and env vars
 sqlpack help
 sqlpack export --help
+sqlpack import --help
 ```
 
-- Run `sqlpack doctor` to validate your environment.
-- Prerequisites: `sqlcmd` (mssql-tools18), PowerShell, and the dbatools module. See [Installation](install.md) for setup.
-- See Installation for system and dev setup.
-- See Usage for an overview and common flows.
-- See Commands for detailed options per subcommand.
+- `sqlpack install-tools` previews or executes tool installation steps.
+- Use `sqlpack doctor` before first use or when troubleshooting.
+- See [Installation](install.md) to set up tools and environment.
+- See [Usage](usage.md) for common flows and quick examples.
+- See [Commands] for detailed flags: [Export](commands/export.md), [Import](commands/import.md), [Export Data](commands/export-data.md), [Doctor](commands/doctor.md).
 
 ## What You Get
 - Repeatable exports for CI with schema + data
