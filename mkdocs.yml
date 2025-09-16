@@ -31,11 +31,11 @@ nav:
   - Installation: install.md
   - Usage: usage.md
   - Commands:
-    - Install Tools: commands/install-tools.md
     - Export: commands/export.md
     - Import: commands/import.md
     - Export Data (BCP): commands/export-data.md
     - Doctor: commands/doctor.md
+    - Install Tools: commands/install-tools.md
   - Configuration: configuration.md
   - Logging: logging.md
   - CI/CD: ci.md
