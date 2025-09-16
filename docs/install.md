@@ -1,5 +1,7 @@
 # Installation
 
+> Quick bootstrap: `sqlpack install-tools` prints the required commands for your OS; add `--execute` to run them automatically (macOS Homebrew or Ubuntu/Debian apt). After installation, verify with `sqlpack doctor`.
+
 ## System-wide Install
 
 ```bash

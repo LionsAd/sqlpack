@@ -41,3 +41,5 @@ sqlpack doctor --help
 If dbatools is missing, see the Installation guide and dbatools docs at https://docs.dbatools.io/.
 
 Note: `doctor` shows info-level diagnostics by default. You can still override verbosity via `BASH_LOG` (e.g., `debug`, `error`).
+
+Tip: If any tools are missing, run `sqlpack install-tools` to preview or `sqlpack install-tools --execute` to automatically install them (macOS Homebrew or Ubuntu/Debian), then re-run `sqlpack doctor`.

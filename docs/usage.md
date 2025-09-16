@@ -5,6 +5,9 @@ SQLPack provides a unified CLI via `sqlpack` with subcommands for export, import
 ## Quick Examples
 
 ```bash
+# Bootstrap tools (macOS Homebrew or Ubuntu/Debian apt)
+sqlpack install-tools --execute
+
 # Export (creates ./db-export and db-dump.tar.gz)
 sqlpack export --server localhost,1433 --database MyApp
 
@@ -16,4 +19,3 @@ sqlpack export-data -s "localhost,1499" -d MyDb -D ./data -t ./tables.txt
 ```
 
 See the individual command pages for flags and environment variables.
-

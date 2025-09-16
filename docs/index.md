@@ -35,7 +35,7 @@ sqlpack import --help
 - Use `sqlpack doctor` before first use or when troubleshooting.
 - See [Installation](install.md) to set up tools and environment.
 - See [Usage](usage.md) for common flows and quick examples.
-- See [Commands] for detailed flags: [Export](commands/export.md), [Import](commands/import.md), [Export Data](commands/export-data.md), [Doctor](commands/doctor.md).
+- See [Commands] for detailed flags: [Install Tools](commands/install-tools.md), [Export](commands/export.md), [Import](commands/import.md), [Export Data](commands/export-data.md), [Doctor](commands/doctor.md).
 
 ## What You Get
 - Repeatable exports for CI with schema + data
