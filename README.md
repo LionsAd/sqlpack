@@ -10,6 +10,8 @@ SQLPack provides a unified command-line interface for database operations:
 - **sqlpack export**: Export complete database schema and data
 - **sqlpack import**: Import database from archive into local environments
 - **sqlpack export-data**: Advanced data export using BCP with native format files
+- **sqlpack doctor**: Validate required tools and environment
+- **sqlpack install**: Print or execute dependency install commands (macOS/Debian)
 
 The tool combines PowerShell and Bash scripts for maximum cross-platform compatibility.
 
@@ -20,6 +22,8 @@ The tool combines PowerShell and Bash scripts for maximum cross-platform compati
 sudo make install
 
 # Validate your environment
+sqlpack install           # Preview install commands for missing deps
+sqlpack install --execute # Run the commands
 sqlpack doctor
 
 # Export a database
@@ -128,6 +132,7 @@ DB_ROW_LIMIT=10000 \
 DB_SCHEMA_ONLY_TABLES="AuditLog,TempData" \
 DB_EXPORT_DIR="./exports" \
 DB_ARCHIVE_NAME="myapp-dev-dump.tar.gz" \
+DB_TRUST_SERVER_CERTIFICATE=true \
 sqlpack export --server localhost,1499 --database MyApp --username sa --password MyPassword
 ```
 
@@ -307,6 +312,7 @@ pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db" -Verbose
 | `DB_EXPORT_DIR` | Export directory |
 | `DB_ARCHIVE_NAME` | Archive filename |
 | `DB_ROW_LIMIT` | Maximum rows per table |
+| `DB_TRUST_SERVER_CERTIFICATE` | Trust server certificate (true/false) |
 
 ## Performance Considerations
 
@@ -368,3 +374,10 @@ sqlpack import --archive db-dump.tar.gz --database MyAppDev --force
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
+
+## Development
+
+- Run from source: `./sqlpack help`
+- Lint Bash scripts: `make lint` (uses shellcheck if available)
+- Run tests: `make test` (runs Bats tests in `tests/` if installed)
+- Increase logging during local runs: `BASH_LOG=debug ./sqlpack import ...` or `PS_LOG_LEVEL=trace pwsh ./commands/export.ps1 ...`
