@@ -71,3 +71,15 @@ ls -lh ./db-dump.tar.gz
 - PowerShell exporter uses `dbatools` under the hood (see CI)
 
 Tip: Run `sqlpack doctor` first or use `sqlpack install-tools --execute` to bootstrap sqlcmd/bcp, PowerShell, and dbatools.
+
+### Logging
+
+By default, exports only print errors, which can look idle on quiet runs.
+
+```bash
+# Recommended during export: show progress and key steps
+BASH_LOG=info sqlpack export --server localhost,1433 --database MyApp
+
+# See detailed, real-time schema export and data steps
+BASH_LOG=trace sqlpack export --server localhost,1433 --database MyApp
+```
