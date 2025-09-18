@@ -10,14 +10,27 @@ SQLPack provides a unified command-line interface for database operations:
 - **sqlpack export**: Export complete database schema and data
 - **sqlpack import**: Import database from archive into local environments
 - **sqlpack export-data**: Advanced data export using BCP with native format files
+- **sqlpack doctor**: Validate required tools and environment
+- **sqlpack install-tools**: Print or execute dependency install commands (macOS/Debian)
 
 The tool combines PowerShell and Bash scripts for maximum cross-platform compatibility.
+
+## Documentation
+
+- Online Docs (GitHub Pages): https://lionsad.github.io/sqlpack/
+- Local preview: `pip install mkdocs mkdocs-material && mkdocs serve`
+- First-time setup for GitHub Pages: merge to main, then in GitHub → Settings → Pages set Source to "Deploy from a branch" with Branch `gh-pages` and Folder `/ (root)`.
 
 ## Quick Start
 
 ```bash
 # Install SQLPack
 sudo make install
+
+# Validate your environment
+sqlpack install-tools           # Preview install commands for missing deps
+sqlpack install-tools --execute # Run the commands
+sqlpack doctor
 
 # Export a database
 sqlpack export --server localhost,1433 --database MyApp
@@ -30,10 +43,22 @@ sqlpack help
 sqlpack export --help
 ```
 
+## Prerequisites (Tools)
+
+See installation steps in [docs/install.md](docs/install.md).
+
+Ensure these tools are installed and on PATH:
+- sqlcmd and bcp (mssql-tools18)
+- PowerShell 7+ (`pwsh`)
+- dbatools PowerShell module (see https://docs.dbatools.io/)
+- tar utility (macOS/Linux)
+
 ## Files Created
 
+Default output directory for exports is `./db-export`.
+
 ```
-output/
+db-export/
 ├── schemas.txt             # Ordered list of schema files for import
 ├── schema-tables.sql       # Database tables
 ├── schema-constraints.sql  # Foreign keys and constraints
@@ -45,7 +70,8 @@ output/
 │   ├── dbo.Users.dat       # Native format data files
 │   ├── dbo.Users.fmt       # BCP format files
 │   └── ...
-└── db-dump.tar.gz          # Compressed archive of all files
+
+db-dump.tar.gz              # Compressed archive of files above (created in CWD)
 ```
 
 ## Prerequisites
@@ -112,6 +138,7 @@ DB_ROW_LIMIT=10000 \
 DB_SCHEMA_ONLY_TABLES="AuditLog,TempData" \
 DB_EXPORT_DIR="./exports" \
 DB_ARCHIVE_NAME="myapp-dev-dump.tar.gz" \
+DB_TRUST_SERVER_CERTIFICATE=true \
 sqlpack export --server localhost,1499 --database MyApp --username sa --password MyPassword
 ```
 
@@ -147,6 +174,8 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          # BASH_LOG: info   # uncomment for progress-level logs in CI
+          # BASH_LOG: trace  # uncomment to stream all commands and outputs
         run: ./sqlpack export
 
       - name: Upload Artifact
@@ -211,6 +240,11 @@ BASH_LOG=trace sqlpack import
 BASH_LOG_TIMESTAMP=true BASH_LOG=debug sqlpack export
 ```
 
+Notes on visibility and CI:
+- `error` (default) keeps console output minimal so failures stand out. Prefer for CI or long unattended runs.
+- `info` shows progress/success lines and can bury errors in long outputs; use interactively with care.
+- `trace` streams all sub-commands and their output for full context; otherwise, detailed tool output is captured to log files and summarized on failure.
+
 **Log Levels (in order of verbosity):**
 - `error` - Only errors (default)
 - `warn` - Warnings and errors
@@ -229,21 +263,21 @@ Use the `PS_LOG_LEVEL` environment variable or command-line switches:
 
 ```powershell
 # Default - informational level
-.\export.ps1 -SqlInstance "server" -Database "db"
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db"
 
 # Verbose output
-.\export.ps1 -SqlInstance "server" -Database "db" -Verbose
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db" -Verbose
 
 # Debug output
-.\export.ps1 -SqlInstance "server" -Database "db" -Debug
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db" -Debug
 
 # Environment variable approach
 $env:PS_LOG_LEVEL = "Debug"
-.\export.ps1 -SqlInstance "server" -Database "db"
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db"
 
 # Add timestamps
 $env:PS_LOG_TIMESTAMP = "true"
-.\export.ps1 -SqlInstance "server" -Database "db" -Verbose
+pwsh ./commands/export.ps1 -SqlInstance "server" -Database "db" -Verbose
 ```
 
 **PowerShell Log Levels:**
@@ -262,10 +296,11 @@ $env:PS_LOG_TIMESTAMP = "true"
 | `-Database` | Yes | Database name to export |
 | `-Username` | No | SQL Server username (uses Windows auth if omitted) |
 | `-Password` | No | SQL Server password |
-| `-OutputPath` | No | Output directory (default: "./output") |
+| `-OutputPath` | No | Output directory (default: "./db-export") |
 | `-TarFileName` | No | Archive filename (default: "db-dump.tar.gz") |
 | `-SchemaOnlyTables` | No | Array of tables to export schema only (no data) |
 | `-DataRowLimit` | No | Maximum rows per table (default: unlimited) |
+| `-TrustServerCertificate` | No | Trust server certificate (bypass SSL validation) |
 
 ### import.sh
 | Parameter | Required | Description |
@@ -277,6 +312,8 @@ $env:PS_LOG_TIMESTAMP = "true"
 | `-p, --password` | No | SQL Server password |
 | `-f, --force` | No | Force recreate database if exists |
 | `--skip-data` | No | Import schema only, skip data |
+| `-w, --work-dir` | No | Working directory for extraction (default: "./db-import-work") |
+| `--trust-server-certificate` | No | Trust server certificate (bypass SSL validation) |
 
 ### export.sh Environment Variables
 | Variable | Description |
@@ -288,12 +325,13 @@ $env:PS_LOG_TIMESTAMP = "true"
 | `DB_EXPORT_DIR` | Export directory |
 | `DB_ARCHIVE_NAME` | Archive filename |
 | `DB_ROW_LIMIT` | Maximum rows per table |
+| `DB_TRUST_SERVER_CERTIFICATE` | Trust server certificate (true/false) |
 
 ## Performance Considerations
 
 ### Export Performance
 - Use `DataRowLimit` for large tables in development environments
-- Exclude unnecessary tables (logs, temp data) with `ExcludeTables`
+- For large or nonessential tables, prefer `SchemaOnlyTables` to export only schema (no data)
 - Run exports during off-peak hours
 - Consider network bandwidth between CI and database server
 
@@ -349,3 +387,10 @@ sqlpack import --archive db-dump.tar.gz --database MyAppDev --force
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
+
+## Development
+
+- Run from source: `./sqlpack help`
+- Lint Bash scripts: `make lint` (uses shellcheck if available)
+- Run tests: `make test` (runs Bats tests in `tests/` if installed)
+- Increase logging during local runs: `BASH_LOG=trace ./sqlpack import ...` or `PS_LOG_LEVEL=trace pwsh ./commands/export.ps1 ...`

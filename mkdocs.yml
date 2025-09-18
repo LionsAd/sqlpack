@@ -1,0 +1,43 @@
+site_name: SQLPack
+site_description: Cross-platform database export/import utility for SQL Server
+site_url: https://lionsad.github.io/sqlpack/
+repo_name: LionsAd/sqlpack
+repo_url: https://github.com/LionsAd/sqlpack
+edit_uri: blob/main/
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.top
+    - content.code.copy
+  palette:
+    - scheme: default
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - tables
+  - pymdownx.details
+  - pymdownx.superfences
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Installation: install.md
+  - Usage: usage.md
+  - Commands:
+    - Export: commands/export.md
+    - Import: commands/import.md
+    - Export Data (BCP): commands/export-data.md
+    - Doctor: commands/doctor.md
+    - Install Tools: commands/install-tools.md
+  - Configuration: configuration.md
+  - Logging: logging.md
+  - CI/CD: ci.md
+  - Development: develop.md
+  - FAQ: faq.md
