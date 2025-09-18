@@ -15,6 +15,12 @@ SQLPack provides a unified command-line interface for database operations:
 
 The tool combines PowerShell and Bash scripts for maximum cross-platform compatibility.
 
+## Documentation
+
+- Online Docs (GitHub Pages): https://lionsad.github.io/sqlpack/
+- Local preview: `pip install mkdocs mkdocs-material && mkdocs serve`
+- First-time setup for GitHub Pages: merge to main, then in GitHub → Settings → Pages set Source to "Deploy from a branch" with Branch `gh-pages` and Folder `/ (root)`.
+
 ## Quick Start
 
 ```bash

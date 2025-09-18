@@ -41,4 +41,16 @@ jobs:
 ```
 
 ## GitHub Pages Docs
-Docs are built with MkDocs Material and deployed to `gh-pages`. See workflow in `.github/workflows/docs.yml`.
+Docs are built with MkDocs Material and deployed to the `gh-pages` branch via GitHub Actions. See workflow in `.github/workflows/docs.yml`.
+
+### First-Time Setup (GitHub Pages)
+- Merge the workflow to `main`. The first successful run creates/updates the `gh-pages` branch.
+- In GitHub: Settings → Pages → Build and deployment:
+  - Source: Deploy from a branch
+  - Branch: `gh-pages` and Folder: `/ (root)`
+  - Save. Pages will publish within a minute or two.
+- Your site URL will be `https://<user-or-org>.github.io/<repo>/` (e.g., `https://lionsad.github.io/sqlpack/`).
+
+Optional:
+- Use a custom domain under Settings → Pages → Custom domain.
+- Preview locally with `pip install mkdocs mkdocs-material` then `mkdocs serve`.
