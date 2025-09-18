@@ -6,6 +6,10 @@ A cross-platform toolkit to export SQL Server databases and import them into dev
 
 Prerequisites (tools): see Installation for setup. You need `sqlcmd` and `bcp` (mssql-tools18), PowerShell 7+ (`pwsh`), and the dbatools module.
 
+Tip on verbosity: commands are quiet at the default `BASH_LOG=error`. For day‑to‑day runs, `BASH_LOG=info` shows progress; use `BASH_LOG=trace` to see everything (full tool output). At `info`/`debug`, detailed tool output may be summarized; open the referenced logs or use `trace` for full console visibility.
+
+Caution: `info` adds many success/progress lines and can make errors easier to overlook in long runs. The default `error` level is intentional to keep failures obvious; prefer it for CI or longer unattended runs.
+
 ```bash
 # 1) Install SQLPack (to /usr/local; use PREFIX for custom path)
 sudo make install
@@ -20,10 +24,10 @@ sqlpack install-tools --execute
 sqlpack doctor
 
 # 4) Export a database (creates ./db-export and db-dump.tar.gz)
-sqlpack export --server localhost,1433 --database MyApp
+BASH_LOG=info sqlpack export --server localhost,1433 --database MyApp
 
 # 5) Import into a local dev instance
-sqlpack import --archive db-dump.tar.gz --database MyAppDev
+BASH_LOG=info sqlpack import --archive db-dump.tar.gz --database MyAppDev
 
 # 6) Explore help for flags and env vars
 sqlpack help
@@ -35,7 +39,8 @@ sqlpack import --help
 - Use `sqlpack doctor` before first use or when troubleshooting.
 - See [Installation](install.md) to set up tools and environment.
 - See [Usage](usage.md) for common flows and quick examples.
-- See [Commands] for detailed flags: [Export](commands/export.md), [Import](commands/import.md), [Export Data](commands/export-data.md), [Doctor](commands/doctor.md), [Install Tools](commands/install-tools.md).
+- See [Logging](logging.md) for recommended verbosity and tips.
+- Commands reference: [Export](commands/export.md), [Import](commands/import.md), [Export Data](commands/export-data.md), [Doctor](commands/doctor.md), [Install Tools](commands/install-tools.md).
 
 ## What You Get
 - Repeatable exports for CI with schema + data

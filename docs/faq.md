@@ -1,5 +1,9 @@
 # FAQ
 
+## It looks like nothing is happening
+- Default logging is quiet (`BASH_LOG=error`). Run with `BASH_LOG=info` to see progress, or `BASH_LOG=trace` to stream all commands and outputs.
+- For imports, check logs in `./logs/`.
+
 ## Common Export Issues
 - dbatools not found: `Install-Module dbatools -Scope CurrentUser -Force`
 - `bcp` not found: install SQL Server command line tools and ensure PATH
@@ -12,4 +16,3 @@
 
 ## Where are logs?
 - Import logs under `./logs/` with per-file details
-

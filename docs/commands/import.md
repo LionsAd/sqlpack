@@ -41,6 +41,20 @@ sqlpack import --archive db-dump.tar.gz --database MyAppDev --work-dir ./tmp/imp
 BASH_LOG=trace sqlpack import --archive db-dump.tar.gz --database MyAppDev
 ```
 
+### Logging
+
+Imports are quiet at the default error level. Choose a level based on your context:
+
+```bash
+# Show progress and key steps during import
+BASH_LOG=info sqlpack import --archive db-dump.tar.gz --database MyAppDev
+
+# Stream every sqlcmd/bcp invocation and output (verbose troubleshooting)
+BASH_LOG=trace sqlpack import --archive db-dump.tar.gz --database MyAppDev
+```
+
+Note: `info` prints many success/progress lines and can bury errors in long outputs. For CI/long runs, prefer `error`. At `info`/`debug`, detailed tool output is captured to log files and summarized on failure; use `trace` for full console context or inspect the logs in `./logs/` (and per-table logs in the working directory during data import).
+
 ### After Import
 
 ```bash

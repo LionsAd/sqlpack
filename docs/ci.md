@@ -29,6 +29,8 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          # BASH_LOG: info   # uncomment for progress-level logs in CI
+          # BASH_LOG: trace  # uncomment to stream all commands and outputs
         run: ./sqlpack export
 
       - name: Upload Artifact
@@ -40,4 +42,3 @@ jobs:
 
 ## GitHub Pages Docs
 Docs are built with MkDocs Material and deployed to `gh-pages`. See workflow in `.github/workflows/docs.yml`.
-

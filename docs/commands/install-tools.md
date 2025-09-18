@@ -31,10 +31,9 @@ For other distributions, follow the manual steps in Installation.
 - On macOS, Homebrew commands accept the Microsoft EULA for `msodbcsql18`/`mssql-tools18`.
 - On Ubuntu/Debian, `sudo` is required for `apt` commands.
 - Re-run `sqlpack doctor` after install to verify tools are available on `PATH`.
-- Increase verbosity with `BASH_LOG=debug sqlpack install-tools --execute`.
+- Optional: set `BASH_LOG=trace` to see full command output when troubleshooting.
 
 ## Exit Codes
 - 0 – Success (printed or executed)
 - 1 – Unsupported OS or execution failure
 - 2 – Usage error
-

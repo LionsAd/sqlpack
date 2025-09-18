@@ -15,6 +15,13 @@ Environment variables and flags control server, authentication, limits, and outp
 | `DB_ROW_LIMIT` | Max rows per table (export) |
 | `DB_SCHEMA_ONLY_TABLES` | Comma-separated list of tables to export schema only |
 
+### Logging Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `BASH_LOG` | Log level: `error` (default), `warn`, `info` (recommended), `debug`, `trace` |
+| `BASH_LOG_TIMESTAMP` | `true`/`false` to prefix log lines with timestamps |
+
 ## Import Defaults
 - Working directory: `./db-import-work`
 - Logs directory: `./logs/`
@@ -23,4 +30,3 @@ Environment variables and flags control server, authentication, limits, and outp
 - Prefer trusted connections where possible
 - Avoid printing credentials in logs
 - Use `DB_TRUST_SERVER_CERTIFICATE` if needed for development
-

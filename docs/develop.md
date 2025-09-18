@@ -17,17 +17,16 @@ make test
 ./sqlpack help
 
 # Export
-./sqlpack export --server localhost,1433 --database MyDb
+BASH_LOG=trace ./sqlpack export --server localhost,1433 --database MyDb
 
 # Import
-./sqlpack import --archive db-dump.tar.gz --database MyDbDev
+BASH_LOG=trace ./sqlpack import --archive db-dump.tar.gz --database MyDbDev
 
 # Export Data (BCP)
-./sqlpack export-data -s "localhost,1499" -d MyDb -D ./data -t ./tables.txt
+BASH_LOG=trace ./sqlpack export-data -s "localhost,1499" -d MyDb -D ./data -t ./tables.txt
 ```
 
 ## Guidelines
 - Bash: `#!/bin/bash` + `set -euo pipefail`, quote vars, prefer arrays
 - PowerShell: explicit parameters, use `[switch]` flags, map to `-Verbose`/`-Debug`
 - Filenames: lowercase kebab-case; functions: lower_snake_case
-

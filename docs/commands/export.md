@@ -74,12 +74,14 @@ Tip: Run `sqlpack doctor` first or use `sqlpack install-tools --execute` to boot
 
 ### Logging
 
-By default, exports only print errors, which can look idle on quiet runs.
+Exports are quiet at the default error level. Choose a level based on your context:
 
 ```bash
-# Recommended during export: show progress and key steps
+# Show progress and key steps during export (interactive runs)
 BASH_LOG=info sqlpack export --server localhost,1433 --database MyApp
 
 # See detailed, real-time schema export and data steps
 BASH_LOG=trace sqlpack export --server localhost,1433 --database MyApp
 ```
+
+Note: `info` prints many success/progress lines and can bury errors in long outputs. For CI/long runs, prefer the default `error` level so failures stand out.
