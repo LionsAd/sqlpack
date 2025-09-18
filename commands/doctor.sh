@@ -48,6 +48,7 @@ check_dbatools() {
 
     # Try to import dbatools quietly; suppress any shell abort noise
     local ps_cmd rc=0
+    # shellcheck disable=SC2016
     ps_cmd='try { Import-Module dbatools -ErrorAction Stop; $true } catch { $false }'
     log_trace "PowerShell command: pwsh -NoLogo -NoProfile -Command \"$ps_cmd\""
 
