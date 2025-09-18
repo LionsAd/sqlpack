@@ -1,6 +1,6 @@
 # SQLPack - Database Export/Import Utility
 
-[![CI](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml)
+[![CI](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml) [![Docs](https://img.shields.io/badge/docs-live-brightgreen)](https://lionsad.github.io/sqlpack/)
 
 A comprehensive cross-platform solution for exporting SQL Server databases and importing them into developer environments.
 
