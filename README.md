@@ -388,6 +388,8 @@ sqlpack import --archive db-dump.tar.gz --database MyAppDev --force
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
+Development sponsored by Tag1 Consulting, Inc.
+
 ## Development
 
 - Run from source: `./sqlpack help`
