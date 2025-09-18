@@ -168,6 +168,8 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          # BASH_LOG: info   # uncomment for progress-level logs in CI
+          # BASH_LOG: trace  # uncomment to stream all commands and outputs
         run: ./sqlpack export
 
       - name: Upload Artifact
@@ -231,6 +233,11 @@ BASH_LOG=trace sqlpack import
 # Add timestamps to log messages
 BASH_LOG_TIMESTAMP=true BASH_LOG=debug sqlpack export
 ```
+
+Notes on visibility and CI:
+- `error` (default) keeps console output minimal so failures stand out. Prefer for CI or long unattended runs.
+- `info` shows progress/success lines and can bury errors in long outputs; use interactively with care.
+- `trace` streams all sub-commands and their output for full context; otherwise, detailed tool output is captured to log files and summarized on failure.
 
 **Log Levels (in order of verbosity):**
 - `error` - Only errors (default)
@@ -380,4 +387,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - Run from source: `./sqlpack help`
 - Lint Bash scripts: `make lint` (uses shellcheck if available)
 - Run tests: `make test` (runs Bats tests in `tests/` if installed)
-- Increase logging during local runs: `BASH_LOG=debug ./sqlpack import ...` or `PS_LOG_LEVEL=trace pwsh ./commands/export.ps1 ...`
+- Increase logging during local runs: `BASH_LOG=trace ./sqlpack import ...` or `PS_LOG_LEVEL=trace pwsh ./commands/export.ps1 ...`
