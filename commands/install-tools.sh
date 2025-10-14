@@ -84,7 +84,7 @@ build_commands() {
         macos)
             if [[ $HAVE_MSSQL_TOOLS -eq 0 ]]; then
                 cmds+=("brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release")
-                cmds+=("ACCEPT_EULA=Y brew install msodbcsql18 mssql-tools18")
+                cmds+=("HOMEBREW_ACCEPT_EULA=Y brew install msodbcsql18 mssql-tools18")
             fi
             if [[ $HAVE_PWSH -eq 0 ]]; then
                 cmds+=("brew install --cask powershell")
