@@ -415,7 +415,7 @@ function Export-DatabaseSchema {
             $options = New-DbaScriptingOption
             $options.ScriptSchema = $true
             $options.IncludeHeaders = $true
-            $options.ScriptBatchTerminator = $false
+            $options.ScriptBatchTerminator = $true
             $options.AnsiFile = $true
             return $options
         })
