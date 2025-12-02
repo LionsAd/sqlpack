@@ -428,7 +428,8 @@ if [[ "$SKIP_DATA" == false ]]; then
 
                 # Build bcp command for import using format file with quoted identifiers
                 # With -q flag, use dot notation instead of bracket notation
-                BCP_PARAMS=("bcp" "$SCHEMA_NAME.$TABLE_NAME" "in" "$DATA_FILE" "-f" "$FORMAT_FILE" "-S" "$SQL_SERVER" "-d" "$DATABASE" "-q")
+                # With -E flag, preserve IDENTITY column values during import
+                BCP_PARAMS=("bcp" "$SCHEMA_NAME.$TABLE_NAME" "in" "$DATA_FILE" "-f" "$FORMAT_FILE" "-S" "$SQL_SERVER" "-d" "$DATABASE" "-q" "-E")
 
                 if [[ -n "$USERNAME" && -n "$PASSWORD" ]]; then
                     BCP_PARAMS+=("-U" "$USERNAME" "-P" "$PASSWORD")
