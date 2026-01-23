@@ -644,7 +644,7 @@ function Create-DatabaseArchive {
         if (Get-Command tar -ErrorAction SilentlyContinue) {
             Write-LogDebug "Creating tar.gz archive using system tar..."
             Write-LogTrace "Archive contents: schemas.txt, tables.txt, data/, schema-*.sql"
-            & tar -czf $tarPath schemas.txt tables.txt data/ schema-*.sql
+            & tar --no-xattrs -czf $tarPath schemas.txt tables.txt data/ schema-*.sql
 
             if ($LASTEXITCODE -eq 0) {
                 Write-LogSuccess "Archive created: $tarPath"
