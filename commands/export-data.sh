@@ -246,10 +246,10 @@ while IFS= read -r table_line; do
             DATA_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.dat"
             touch "$DATA_FILE"
             log_debug "Created empty data file: $SCHEMA_NAME.$TABLE_NAME.dat"
-            ((FORMAT_CREATED++))
+            FORMAT_CREATED=$((FORMAT_CREATED + 1))
         else
             print_warning "Failed to create format file for: $FULL_TABLE_NAME"
-            ((FORMAT_FAILED++))
+            FORMAT_FAILED=$((FORMAT_FAILED + 1))
         fi
     else
         print_warning "Invalid table format: $table_line"
@@ -288,7 +288,7 @@ while IFS= read -r table_line; do
         # Check if format file exists
         if [[ ! -f "$FORMAT_FILE" ]]; then
             print_warning "Format file not found for $FULL_TABLE_NAME, skipping"
-            ((DATA_FAILED++))
+            DATA_FAILED=$((DATA_FAILED + 1))
             continue
         fi
 
@@ -312,10 +312,10 @@ while IFS= read -r table_line; do
         DATA_LOG_FILE="$DATA_DIR/$SCHEMA_NAME.$TABLE_NAME.data.log"
         if log_exec "Export data for $SCHEMA_NAME.$TABLE_NAME" "$DATA_LOG_FILE" "${EXPORT_CMD[@]}"; then
             print_success "Exported: $SCHEMA_NAME.$TABLE_NAME.dat"
-            ((DATA_EXPORTED++))
+            DATA_EXPORTED=$((DATA_EXPORTED + 1))
         else
             print_warning "Failed to export data for: $FULL_TABLE_NAME"
-            ((DATA_FAILED++))
+            DATA_FAILED=$((DATA_FAILED + 1))
         fi
     else
         print_warning "Invalid table format: $table_line"
