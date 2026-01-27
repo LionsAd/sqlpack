@@ -420,7 +420,7 @@ if [[ "$SKIP_DATA" == false ]]; then
                 # Check if data file is empty - skip if so
                 if [[ ! -s "$DATA_FILE" ]]; then
                     log_debug "Skipping empty data file: $SCHEMA_NAME.$TABLE_NAME"
-                    ((IMPORTED_COUNT++))
+                    IMPORTED_COUNT=$((IMPORTED_COUNT + 1))
                     continue
                 fi
 
@@ -445,16 +445,16 @@ if [[ "$SKIP_DATA" == false ]]; then
                 BCP_LOG_FILE="$WORK_DIR/import_${SCHEMA_NAME}_${TABLE_NAME}.log"
                 if log_exec "Import data for $SCHEMA_NAME.$TABLE_NAME" "$BCP_LOG_FILE" "${BCP_PARAMS[@]}"; then
                     print_success "$SCHEMA_NAME.$TABLE_NAME"
-                    ((IMPORTED_COUNT++))
+                    IMPORTED_COUNT=$((IMPORTED_COUNT + 1))
                 else
                     print_error "Failed: $SCHEMA_NAME.$TABLE_NAME"
-                    ((FAILED_COUNT++))
+                    FAILED_COUNT=$((FAILED_COUNT + 1))
                     # Show last few lines of error log
                     tail -5 "$WORK_DIR/import_${SCHEMA_NAME}_${TABLE_NAME}.log" | sed 's/^/    /'
                 fi
             else
                 print_warning "Data file not found: $DATA_FILE"
-                ((FAILED_COUNT++))
+                FAILED_COUNT=$((FAILED_COUNT + 1))
             fi
         else
             print_warning "Invalid table format: $TABLE_FULL"
