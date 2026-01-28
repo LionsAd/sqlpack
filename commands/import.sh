@@ -458,7 +458,7 @@ if [[ "$SKIP_DATA" == false ]]; then
             fi
         else
             print_warning "Invalid table format: $TABLE_FULL"
-            ((FAILED_COUNT++))
+            FAILED_COUNT=$((FAILED_COUNT + 1))
         fi
     done < "$TABLES_FILE"
 
