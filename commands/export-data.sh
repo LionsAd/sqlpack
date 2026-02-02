@@ -253,7 +253,7 @@ while IFS= read -r table_line; do
         fi
     else
         print_warning "Invalid table format: $table_line"
-        ((FORMAT_FAILED++))
+        FORMAT_FAILED=$((FORMAT_FAILED + 1))
     fi
 done < "$TABLES_FILE"
 
@@ -319,7 +319,7 @@ while IFS= read -r table_line; do
         fi
     else
         print_warning "Invalid table format: $table_line"
-        ((DATA_FAILED++))
+        DATA_FAILED=$((DATA_FAILED + 1))
     fi
 done <<< "$FILTERED_TABLES"
 
