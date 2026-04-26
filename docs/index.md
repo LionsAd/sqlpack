@@ -48,5 +48,5 @@ sqlpack import --help
 - Cross-platform scripts with consistent logging and flags
 
 ## Links
-- Repository: https://github.com/LionsAd/sqlpack
-- Issues: https://github.com/LionsAd/sqlpack/issues
+- Repository: https://github.com/fabianx-ai/sqlpack
+- Issues: https://github.com/fabianx-ai/sqlpack/issues

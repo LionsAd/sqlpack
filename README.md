@@ -1,6 +1,6 @@
 # SQLPack - Database Export/Import Utility
 
-[![CI](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LionsAd/sqlpack/actions/workflows/ci.yml) [![Docs](https://img.shields.io/badge/docs-live-brightgreen)](https://lionsad.github.io/sqlpack/)
+[![CI](https://github.com/fabianx-ai/sqlpack/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fabianx-ai/sqlpack/actions/workflows/ci.yml) [![Docs](https://img.shields.io/badge/docs-live-brightgreen)](https://fabianx-ai.github.io/sqlpack/)
 
 A comprehensive cross-platform solution for exporting SQL Server databases and importing them into developer environments.
 
@@ -17,7 +17,7 @@ The tool combines PowerShell and Bash scripts for maximum cross-platform compati
 
 ## Documentation
 
-- Online Docs (GitHub Pages): https://lionsad.github.io/sqlpack/
+- Online Docs (GitHub Pages): https://fabianx-ai.github.io/sqlpack/
 - Local preview: `pip install mkdocs mkdocs-material && mkdocs serve`
 - First-time setup for GitHub Pages: merge to main, then in GitHub → Settings → Pages set Source to "Deploy from a branch" with Branch `gh-pages` and Folder `/ (root)`.
 

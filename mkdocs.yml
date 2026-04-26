@@ -1,8 +1,8 @@
 site_name: SQLPack
 site_description: Cross-platform database export/import utility for SQL Server
-site_url: https://lionsad.github.io/sqlpack/
-repo_name: LionsAd/sqlpack
-repo_url: https://github.com/LionsAd/sqlpack
+site_url: https://fabianx-ai.github.io/sqlpack/
+repo_name: fabianx-ai/sqlpack
+repo_url: https://github.com/fabianx-ai/sqlpack
 edit_uri: blob/main/
 
 theme:

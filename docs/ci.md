@@ -49,7 +49,7 @@ Docs are built with MkDocs Material and deployed to the `gh-pages` branch via Gi
   - Source: Deploy from a branch
   - Branch: `gh-pages` and Folder: `/ (root)`
   - Save. Pages will publish within a minute or two.
-- Your site URL will be `https://<user-or-org>.github.io/<repo>/` (e.g., `https://lionsad.github.io/sqlpack/`).
+- Your site URL will be `https://<user-or-org>.github.io/<repo>/` (e.g., `https://fabianx-ai.github.io/sqlpack/`).
 
 Optional:
 - Use a custom domain under Settings → Pages → Custom domain.
